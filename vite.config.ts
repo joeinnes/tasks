@@ -13,7 +13,7 @@ export default defineConfig({
     SvelteKitPWA({
       strategies: "injectManifest",
       srcDir: "src",
-      filename: "service-worker.ts",
+      filename: "sw.ts",
       manifest: {
         name: "Tasks",
         short_name: "Tasks",
