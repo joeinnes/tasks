@@ -87,6 +87,8 @@
 
   let editingSlot = $state<{ date: string | null; index: number } | null>(null);
   let newTaskTitle = $state("");
+  let editingTodoId = $state<string | null>(null);
+  let editingTitle  = $state("");
   let dragOverZone = $state<string | undefined>(undefined);
   let dragOverRow  = $state<{ date: string | null; index: number } | null>(null);
   let calPicker    = $state<{ todoId: string; x: number; y: number } | null>(null);
@@ -109,6 +111,18 @@
       position: Math.floor(Date.now() / 1000),
     });
     editingSlot = null;
+  }
+
+  function startEditing(todo: Todo) {
+    editingTodoId = todo.id;
+    editingTitle  = todo.title;
+  }
+
+  function submitEdit() {
+    if (!editingTodoId) return;
+    const title = editingTitle.trim();
+    if (title) db.update(app.todos, editingTodoId, { title });
+    editingTodoId = null;
   }
 
   function openCalPicker(e: MouseEvent, todo: Todo) {
@@ -226,6 +240,19 @@
   <ul class="task-list">
     {#each slots as todo, i}
       {#if todo}
+        {#if editingTodoId === todo.id}
+          <li class="row editing">
+            <form onsubmit={(e) => { e.preventDefault(); submitEdit(); }}>
+              <input
+                type="text"
+                bind:value={editingTitle}
+                autofocus
+                onblur={submitEdit}
+                onkeydown={(e) => e.key === "Escape" && (editingTodoId = null)}
+              />
+            </form>
+          </li>
+        {:else}
         <li
           class="row"
           class:done={todo.done}
@@ -242,7 +269,7 @@
               checked={todo.done}
               onchange={() => db.update(app.todos, todo.id, { done: !todo.done })}
             />
-            <span class="task-title">{todo.title}</span>
+            <span class="task-title" ondblclick={() => startEditing(todo)}>{todo.title}</span>
           </label>
           <button class="del" aria-label="Delete task" onclick={() => db.delete(app.todos, todo.id)}>
             <svg width="9" height="9" viewBox="0 0 9 9" fill="none" aria-hidden="true">
@@ -261,6 +288,7 @@
             ></button>
           {/if}
         </li>
+        {/if}
       {:else if editingSlot?.date === date && editingSlot?.index === i}
         <li class="row editing">
           <form onsubmit={(e) => submitNewTask(e, date)}>
