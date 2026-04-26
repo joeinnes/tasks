@@ -27,6 +27,7 @@
     "@vite-pwa/sveltekit": "^1.1.0",
     "svelte-check": "^4.0.0",
     "typescript": "6.0.2",
-    "vite": "8.0.1"
+    "vite": "8.0.1",
+    "workbox-window": "^7.4.0"
   }
 }
