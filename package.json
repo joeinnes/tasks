@@ -16,7 +16,8 @@
     "@upstash/redis": "^1.37.0",
     "jazz-tools": "^2.0.0-alpha.39",
     "svelte": "^5.0.0",
-    "web-push": "^3.6.7"
+    "web-push": "^3.6.7",
+    "workbox-precaching": "^7.4.0"
   },
   "devDependencies": {
     "@playwright/test": "^1.58.2",
