@@ -99,14 +99,16 @@
   }
 
   function submitNewTask(e: SubmitEvent | FocusEvent, date: string | null) {
-    if (e instanceof SubmitEvent) e.preventDefault();
+    e.preventDefault();
     const title = newTaskTitle.trim();
-    if (!title || !session?.user_id || !personalCal.id) { editingSlot = null; return; }
+    if (!title || !session?.user_id) { editingSlot = null; return; }
+    const calendarId = personalCal.id ?? myCalendars[0]?.id;
+    if (!calendarId) { editingSlot = null; return; }
     db.insert(app.todos, {
       title,
       done: false,
       date: date ?? "",
-      calendarId: personalCal.id,
+      calendarId,
       creatorId: session.user_id,
       position: Math.floor(Date.now() / 1000),
     });
