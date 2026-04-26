@@ -1,13 +1,13 @@
 import { json } from "@sveltejs/kit";
 import { Receiver } from "@upstash/qstash";
-import { QSTASH_CURRENT_SIGNING_KEY, QSTASH_NEXT_SIGNING_KEY } from "$env/static/private";
+import { env } from "$env/dynamic/private";
 import { getSubscription } from "$lib/server/subscriptions";
 import { sendPush } from "$lib/server/push";
 import type { RequestHandler } from "./$types";
 
 const receiver = new Receiver({
-  currentSigningKey: QSTASH_CURRENT_SIGNING_KEY,
-  nextSigningKey:    QSTASH_NEXT_SIGNING_KEY,
+  currentSigningKey: env.QSTASH_CURRENT_SIGNING_KEY,
+  nextSigningKey:    env.QSTASH_NEXT_SIGNING_KEY,
 });
 
 export const POST: RequestHandler = async ({ request }) => {

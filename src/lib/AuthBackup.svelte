@@ -2,7 +2,7 @@
   import { BrowserAuthSecretStore, getSession } from "jazz-tools/svelte";
   import { goto } from "$app/navigation";
   import { browser } from "$app/environment";
-  import { PUBLIC_VAPID_KEY } from "$env/static/public";
+  import { env } from "$env/dynamic/public";
   import { userPrefs, setDisplayName, setNotifTime } from "$lib/userPrefs.svelte";
 
   const session = getSession();
@@ -59,7 +59,7 @@
     const reg = await navigator.serviceWorker.ready;
     const sub = await reg.pushManager.subscribe({
       userVisibleOnly: true,
-      applicationServerKey: urlB64ToUint8Array(PUBLIC_VAPID_KEY),
+      applicationServerKey: urlB64ToUint8Array(env.PUBLIC_VAPID_KEY),
     });
     await fetch("/api/push/subscribe", {
       method: "POST",

@@ -1,10 +1,10 @@
 import { json, error } from "@sveltejs/kit";
 import { Client } from "@upstash/qstash";
-import { QSTASH_TOKEN } from "$env/static/private";
+import { env } from "$env/dynamic/private";
 import { getSubscription, removeSubscription } from "$lib/server/subscriptions";
 import type { RequestHandler } from "./$types";
 
-const qstash = new Client({ token: QSTASH_TOKEN });
+const qstash = new Client({ token: env.QSTASH_TOKEN });
 
 export const POST: RequestHandler = async ({ request }) => {
   const { userId } = await request.json();
