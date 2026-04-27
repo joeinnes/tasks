@@ -13,7 +13,7 @@
   const allCals = new QuerySubscription<Calendar>(app.calendars);
   const allMembers = new QuerySubscription<Member>(app.calendar_members);
 
-  const todayStr = new Date().toISOString().split("T")[0];
+  let todayStr = $state(new Date().toISOString().split("T")[0]);
   let currentStartDate = $state(new Date());
   let pickingDate = $state(false);
   let containerWidth = $state(1200);
@@ -26,6 +26,20 @@
     const ro = new ResizeObserver(([entry]) => { containerWidth = entry.contentRect.width; });
     ro.observe(wrapEl);
     return () => ro.disconnect();
+  });
+
+  $effect(() => {
+    let timer: ReturnType<typeof setTimeout>;
+    function schedule() {
+      const next = new Date();
+      next.setUTCHours(24, 0, 0, 100);
+      timer = setTimeout(() => {
+        todayStr = new Date().toISOString().split("T")[0];
+        schedule();
+      }, next.getTime() - Date.now());
+    }
+    schedule();
+    return () => clearTimeout(timer);
   });
 
   function toggleDone(todo: Todo) {
