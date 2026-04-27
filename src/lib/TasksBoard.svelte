@@ -28,6 +28,14 @@
     return () => ro.disconnect();
   });
 
+  function toggleDone(todo: Todo) {
+    const update: { done: boolean; date?: string } = { done: !todo.done };
+    if (!todo.done && todo.date && todo.date < todayStr) {
+      update.date = todayStr;
+    }
+    db.update(app.todos, todo.id, update);
+  }
+
   function prevDay() {
     const d = new Date(currentStartDate);
     d.setDate(d.getDate() - 1);
@@ -211,9 +219,13 @@
   function getSlotsForDate(date: string | null): Array<Todo | null> {
     const items = (todos.current ?? [])
       .filter(t => {
-        const dateMatch = date === null ? !t.date : t.date === date;
         const calMatch = t.calendarId ? visibleCalendarIds.has(t.calendarId) : false;
-        return dateMatch && calMatch;
+        if (!calMatch) return false;
+        if (date === null) return !t.date;
+        if (!t.date) return false;
+        if (date === todayStr) return t.date === todayStr || (t.date < todayStr && !t.done);
+        if (date < todayStr) return t.date === date && t.done;
+        return t.date === date;
       })
       .sort((a, b) => {
         const aPersonal = a.calendarId === personalCal.id ? 0 : 1;
@@ -269,7 +281,7 @@
               type="checkbox"
               class="cb"
               checked={todo.done}
-              onchange={() => db.update(app.todos, todo.id, { done: !todo.done })}
+              onchange={() => toggleDone(todo)}
             />
             <span class="task-title" ondblclick={() => startEditing(todo)}>{todo.title}</span>
           </label>
