@@ -242,6 +242,7 @@
         return t.date === date;
       })
       .sort((a, b) => {
+        if (a.done !== b.done) return a.done ? 1 : -1;
         const aPersonal = a.calendarId === personalCal.id ? 0 : 1;
         const bPersonal = b.calendarId === personalCal.id ? 0 : 1;
         if (aPersonal !== bPersonal) return aPersonal - bPersonal;
