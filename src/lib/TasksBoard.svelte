@@ -209,8 +209,21 @@
   }
 
   function handleDragStart(e: DragEvent, id: string) {
-    e.dataTransfer?.setData("text/plain", id);
+    e.dataTransfer?.setData("text/plain", "task:" + id);
     e.dataTransfer!.effectAllowed = "move";
+  }
+
+  function handleEventDragStart(e: DragEvent, id: string) {
+    e.dataTransfer?.setData("text/plain", "event:" + id);
+    e.dataTransfer!.effectAllowed = "move";
+  }
+
+  function parseDragPayload(raw: string | undefined): { kind: "task" | "event"; id: string } | null {
+    if (!raw) return null;
+    if (raw.startsWith("task:")) return { kind: "task", id: raw.slice(5) };
+    if (raw.startsWith("event:")) return { kind: "event", id: raw.slice(6) };
+    // Backwards compat: treat bare ids as task ids.
+    return { kind: "task", id: raw };
   }
 
   function handleColumnDragOver(e: DragEvent, zone: string) {
@@ -223,11 +236,17 @@
     e.preventDefault();
     dragOverZone = undefined;
     dragOverRow = null;
-    const id = e.dataTransfer?.getData("text/plain");
-    if (!id) return;
+    const payload = parseDragPayload(e.dataTransfer?.getData("text/plain"));
+    if (!payload) return;
+    if (payload.kind === "event") {
+      // Events can only land on a real day (not Someday).
+      if (date === null) return;
+      db.update(app.events, payload.id, { date });
+      return;
+    }
     const existing = getSlotsForDate(date).filter((t): t is Todo => t !== null);
     const lastPos = existing.length > 0 ? (existing[existing.length - 1].position ?? 0) + 1000 : Math.floor(Date.now() / 1000);
-    db.update(app.todos, id, { date: date ?? "", position: lastPos });
+    db.update(app.todos, payload.id, { date: date ?? "", position: lastPos });
   }
 
   function handleRowDragOver(e: DragEvent, date: string | null, index: number) {
@@ -240,13 +259,18 @@
   function handleRowDrop(e: DragEvent, date: string | null, slots: Array<Todo | null>, index: number) {
     e.preventDefault();
     e.stopPropagation();
-    const id = e.dataTransfer?.getData("text/plain");
+    const payload = parseDragPayload(e.dataTransfer?.getData("text/plain"));
     dragOverRow = null;
     dragOverZone = undefined;
-    if (!id) return;
+    if (!payload) return;
+    if (payload.kind === "event") {
+      // Events don't reorder within a day; route to column-drop semantics.
+      if (date !== null) db.update(app.events, payload.id, { date });
+      return;
+    }
 
     const real = slots.filter((s): s is Todo => s !== null);
-    const others = real.filter(t => t.id !== id);
+    const others = real.filter(t => t.id !== payload.id);
     const target = real[index];
     const insertBefore = target ? others.findIndex(t => t.id === target.id) : others.length;
 
@@ -266,7 +290,7 @@
       newPos = a === b ? a + 1 : Math.round((a + b) / 2);
     }
 
-    db.update(app.todos, id, { date: date ?? "", position: newPos });
+    db.update(app.todos, payload.id, { date: date ?? "", position: newPos });
   }
 
   function handleDragLeave(e: DragEvent) {
@@ -403,7 +427,11 @@
   {#if items.length > 0}
     <ul class="event-list">
       {#each items as event (event.id)}
-        <li class="event-row">
+        <li
+          class="event-row"
+          draggable="true"
+          ondragstart={(e) => handleEventDragStart(e, event.id)}
+        >
           <button
             type="button"
             class="event-clickable"
@@ -723,6 +751,12 @@
     padding: 0 0.75rem;
     border-bottom: 1px solid #f0f0f0;
   }
+
+  .event-row {
+    cursor: grab;
+  }
+
+  .event-row:active { cursor: grabbing; }
 
   .event-row:hover { background: #f8f8f8; }
 
