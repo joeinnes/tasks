@@ -373,12 +373,37 @@
     e.dataTransfer!.effectAllowed = "move";
   }
 
-  function parseDragPayload(raw: string | undefined): { kind: "task" | "event"; id: string } | null {
+  function handleVirtualTaskDragStart(e: DragEvent, seriesId: string) {
+    e.dataTransfer?.setData("text/plain", "task-virtual:" + seriesId);
+    e.dataTransfer!.effectAllowed = "move";
+  }
+
+  type DragPayload =
+    | { kind: "task"; id: string }
+    | { kind: "event"; id: string }
+    | { kind: "task-virtual"; seriesId: string };
+
+  function parseDragPayload(raw: string | undefined): DragPayload | null {
     if (!raw) return null;
+    if (raw.startsWith("task-virtual:")) return { kind: "task-virtual", seriesId: raw.slice(13) };
     if (raw.startsWith("task:")) return { kind: "task", id: raw.slice(5) };
     if (raw.startsWith("event:")) return { kind: "event", id: raw.slice(6) };
-    // Backwards compat: treat bare ids as task ids.
     return { kind: "task", id: raw };
+  }
+
+  function materialiseVirtualTask(seriesId: string, date: string) {
+    if (!session?.user_id) return;
+    const series = taskSeriesData.find(s => s.id === seriesId);
+    if (!series) return;
+    db.insert(app.todos, {
+      title: series.title,
+      done: false,
+      date,
+      calendarId: series.calendarId,
+      creatorId: series.creatorId,
+      position: Math.floor(Date.now() / 1000),
+      seriesId: series.id,
+    });
   }
 
   function handleColumnDragOver(e: DragEvent, zone: string) {
@@ -394,12 +419,16 @@
     const payload = parseDragPayload(e.dataTransfer?.getData("text/plain"));
     if (!payload) return;
     if (payload.kind === "event") {
-      // Events can only land on a real day (not Someday).
       if (date === null) return;
       db.update(app.events, payload.id, { date });
       return;
     }
-    const existing = getSlotsForDate(date).filter((t): t is Todo => t !== null);
+    if (payload.kind === "task-virtual") {
+      if (date === null) return;
+      materialiseVirtualTask(payload.seriesId, date);
+      return;
+    }
+    const existing = getSlotsForDate(date).filter((t): t is RenderedTask => t !== null);
     const lastPos = existing.length > 0 ? (existing[existing.length - 1].position ?? 0) + 1000 : Math.floor(Date.now() / 1000);
     db.update(app.todos, payload.id, { date: date ?? "", position: lastPos });
   }
@@ -421,6 +450,10 @@
     if (payload.kind === "event") {
       // Events don't reorder within a day; route to column-drop semantics.
       if (date !== null) db.update(app.events, payload.id, { date });
+      return;
+    }
+    if (payload.kind === "task-virtual") {
+      if (date !== null) materialiseVirtualTask(payload.seriesId, date);
       return;
     }
 
@@ -579,8 +612,10 @@
           class:done={todo.done}
           class:virtual={todo.isVirtual}
           class:drag-target={dragOverRow?.date === date && dragOverRow?.index === i}
-          draggable={!todo.isVirtual}
-          ondragstart={!todo.isVirtual ? (e) => handleDragStart(e, todo.id) : undefined}
+          draggable="true"
+          ondragstart={todo.isVirtual && todo.seriesId
+            ? (e) => handleVirtualTaskDragStart(e, todo.seriesId!)
+            : (e) => handleDragStart(e, todo.id)}
           ondragover={(e) => handleRowDragOver(e, date, i)}
           ondrop={(e) => handleRowDrop(e, date, slots, i)}
         >
