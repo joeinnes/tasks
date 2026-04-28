@@ -3,14 +3,14 @@
   import { app } from "$lib/schema";
   import { isVisible, personalCal } from "$lib/calendars.svelte";
   import { eventsForDay, sortEventLikes, type Event, type EventLike } from "$lib/events";
-  import { virtualEventsForDay, type EventSeriesData, type VirtualEvent } from "$lib/materialisation";
-  import type { Rule, Freq, Weekday, EndCondition } from "$lib/recurrence";
+  import { virtualEventsForDay, virtualTasksForDay, type EventSeriesData, type TaskSeriesData, type VirtualEvent } from "$lib/materialisation";
+  import type { Rule, Freq, Weekday, EndCondition, Mode } from "$lib/recurrence";
   import EventModal from "$lib/EventModal.svelte";
   import TaskModal from "$lib/TaskModal.svelte";
 
   type Calendar = { id: string; name: string; colour: string; creatorId: string; isPersonal: boolean };
   type Member   = { id: string; calendarId: string; userId: string };
-  type Todo     = { id: string; title: string; done: boolean; date: string; calendarId?: string; creatorId?: string; position?: number };
+  type Todo     = { id: string; title: string; done: boolean; date: string; calendarId?: string; creatorId?: string; position?: number; seriesId?: string | null };
   type EventSeriesRow = {
     id: string;
     title: string;
@@ -27,14 +27,53 @@
     endDate?: string | null;
     count?: number | null;
   };
+  type TaskSeriesRow = {
+    id: string;
+    title: string;
+    calendarId: string;
+    creatorId: string;
+    startDate: string;
+    freq: string;
+    interval: number;
+    byDay?: string | null;
+    byMonthDay?: number | null;
+    bySetPos?: number | null;
+    endCondition: string;
+    endDate?: string | null;
+    count?: number | null;
+    mode: string;
+  };
+  type RenderedTask = Todo & { isVirtual?: boolean; seriesId?: string | null };
 
   const db      = getDb();
   const session = getSession();
   const todos   = new QuerySubscription<Todo>(app.todos);
   const events  = new QuerySubscription<Event>(app.events);
   const eventSeriesQuery = new QuerySubscription<EventSeriesRow>(app.event_series);
+  const taskSeriesQuery = new QuerySubscription<TaskSeriesRow>(app.task_series);
   const allCals = new QuerySubscription<Calendar>(app.calendars);
   const allMembers = new QuerySubscription<Member>(app.calendar_members);
+
+  function taskSeriesToData(row: TaskSeriesRow): TaskSeriesData {
+    return {
+      id: row.id,
+      title: row.title,
+      calendarId: row.calendarId,
+      creatorId: row.creatorId,
+      mode: row.mode as Mode,
+      rule: {
+        startDate: row.startDate,
+        freq: row.freq as Freq,
+        interval: row.interval,
+        byDay: row.byDay ? (row.byDay.split(",") as Weekday[]) : undefined,
+        byMonthDay: row.byMonthDay ?? undefined,
+        bySetPos: row.bySetPos ?? undefined,
+        endCondition: row.endCondition as EndCondition,
+        endDate: row.endDate ?? undefined,
+        count: row.count ?? undefined,
+      },
+    };
+  }
 
   function eventSeriesToData(row: EventSeriesRow): EventSeriesData {
     return {
@@ -86,7 +125,8 @@
     return () => clearTimeout(timer);
   });
 
-  function toggleDone(todo: Todo) {
+  function toggleDone(todo: RenderedTask) {
+    if (todo.isVirtual) return; // wired in slice 10
     const update: { done: boolean; date?: string } = { done: !todo.done };
     if (!todo.done && todo.date && todo.date < todayStr) {
       update.date = todayStr;
@@ -172,16 +212,34 @@
     taskModal = null;
   }
 
-  function saveTaskFromModal(values: { title: string; date: string; calendarId: string }) {
+  function saveTaskFromModal(values: { title: string; date: string; calendarId: string; rule?: Rule; seriesMode?: Mode }) {
     if (!session?.user_id) return;
-    db.insert(app.todos, {
-      title: values.title,
-      done: false,
-      date: values.date,
-      calendarId: values.calendarId,
-      creatorId: session.user_id,
-      position: Math.floor(Date.now() / 1000),
-    });
+    if (values.rule && values.seriesMode) {
+      db.insert(app.task_series, {
+        title: values.title,
+        calendarId: values.calendarId,
+        creatorId: session.user_id,
+        startDate: values.rule.startDate,
+        freq: values.rule.freq,
+        interval: values.rule.interval,
+        byDay: values.rule.byDay && values.rule.byDay.length > 0 ? values.rule.byDay.join(",") : undefined,
+        byMonthDay: values.rule.byMonthDay,
+        bySetPos: values.rule.bySetPos,
+        endCondition: values.rule.endCondition,
+        endDate: values.rule.endDate,
+        count: values.rule.count,
+        mode: values.seriesMode,
+      });
+    } else {
+      db.insert(app.todos, {
+        title: values.title,
+        done: false,
+        date: values.date,
+        calendarId: values.calendarId,
+        creatorId: session.user_id,
+        position: Math.floor(Date.now() / 1000),
+      });
+    }
     taskModal = null;
   }
 
@@ -340,7 +398,7 @@
     dragOverZone = date ?? "someday";
   }
 
-  function handleRowDrop(e: DragEvent, date: string | null, slots: Array<Todo | null>, index: number) {
+  function handleRowDrop(e: DragEvent, date: string | null, slots: Array<RenderedTask | null>, index: number) {
     e.preventDefault();
     e.stopPropagation();
     const payload = parseDragPayload(e.dataTransfer?.getData("text/plain"));
@@ -353,7 +411,7 @@
       return;
     }
 
-    const real = slots.filter((s): s is Todo => s !== null);
+    const real = slots.filter((s): s is RenderedTask => s !== null && !s.isVirtual);
     const others = real.filter(t => t.id !== payload.id);
     const target = real[index];
     const insertBefore = target ? others.findIndex(t => t.id === target.id) : others.length;
@@ -386,8 +444,8 @@
 
   const MIN_SLOTS = 10;
 
-  function getSlotsForDate(date: string | null): Array<Todo | null> {
-    const items = (todos.current ?? [])
+  function getSlotsForDate(date: string | null): Array<RenderedTask | null> {
+    const reals: RenderedTask[] = (todos.current ?? [])
       .filter(t => {
         const calMatch = t.calendarId ? visibleCalendarIds.has(t.calendarId) : false;
         if (!calMatch) return false;
@@ -396,14 +454,38 @@
         if (date === todayStr) return t.date === todayStr || (t.date < todayStr && !t.done);
         if (date < todayStr) return t.date === date && t.done;
         return t.date === date;
-      })
-      .sort((a, b) => {
-        if (a.done !== b.done) return a.done ? 1 : -1;
-        const aPersonal = a.calendarId === personalCal.id ? 0 : 1;
-        const bPersonal = b.calendarId === personalCal.id ? 0 : 1;
-        if (aPersonal !== bPersonal) return aPersonal - bPersonal;
-        return (a.position ?? Number.MAX_SAFE_INTEGER) - (b.position ?? Number.MAX_SAFE_INTEGER);
       });
+
+    let virtuals: RenderedTask[] = [];
+    if (date) {
+      const allRealRows = (todos.current ?? []).map(t => ({
+        id: t.id,
+        date: t.date,
+        done: t.done,
+        seriesId: t.seriesId ?? undefined,
+      }));
+      const series = taskSeriesData.filter(s => visibleCalendarIds.has(s.calendarId));
+      virtuals = virtualTasksForDay(date, todayStr, series, allRealRows).map(v => ({
+        id: v.id,
+        title: v.title,
+        date: v.date,
+        done: false,
+        calendarId: v.calendarId,
+        creatorId: v.creatorId,
+        position: undefined,
+        isVirtual: true,
+        seriesId: v.seriesId,
+      }));
+    }
+
+    const items = [...reals, ...virtuals].sort((a, b) => {
+      if (a.done !== b.done) return a.done ? 1 : -1;
+      const aPersonal = a.calendarId === personalCal.id ? 0 : 1;
+      const bPersonal = b.calendarId === personalCal.id ? 0 : 1;
+      if (aPersonal !== bPersonal) return aPersonal - bPersonal;
+      return (a.position ?? Number.MAX_SAFE_INTEGER) - (b.position ?? Number.MAX_SAFE_INTEGER);
+    });
+
     const count = Math.max(MIN_SLOTS, items.length + 1);
     return [...items, ...new Array<null>(count - items.length).fill(null)];
   }
@@ -415,6 +497,10 @@
 
   const eventSeriesData = $derived.by(() =>
     (eventSeriesQuery.current ?? []).map(eventSeriesToData)
+  );
+
+  const taskSeriesData = $derived.by(() =>
+    (taskSeriesQuery.current ?? []).map(taskSeriesToData)
   );
 
   function getEventsForDate(date: string): RenderedEvent[] {
@@ -457,7 +543,7 @@
   </div>
 {/if}
 
-{#snippet taskList(date: string | null, slots: Array<Todo | null>)}
+{#snippet taskList(date: string | null, slots: Array<RenderedTask | null>)}
   <ul class="task-list">
     {#each slots as todo, i}
       {#if todo}
@@ -474,12 +560,14 @@
             </form>
           </li>
         {:else}
+        {@const showRepeatGlyph = todo.isVirtual || (!!todo.seriesId && !todo.done)}
         <li
           class="row"
           class:done={todo.done}
+          class:virtual={todo.isVirtual}
           class:drag-target={dragOverRow?.date === date && dragOverRow?.index === i}
-          draggable="true"
-          ondragstart={(e) => handleDragStart(e, todo.id)}
+          draggable={!todo.isVirtual}
+          ondragstart={!todo.isVirtual ? (e) => handleDragStart(e, todo.id) : undefined}
           ondragover={(e) => handleRowDragOver(e, date, i)}
           ondrop={(e) => handleRowDrop(e, date, slots, i)}
         >
@@ -490,20 +578,27 @@
               checked={todo.done}
               onchange={() => toggleDone(todo)}
             />
-            <span class="task-title" ondblclick={() => startEditing(todo)}>{todo.title}</span>
+            <span
+              class="task-title"
+              ondblclick={!todo.isVirtual ? () => startEditing(todo as Todo) : undefined}
+            >
+              {#if showRepeatGlyph}<span class="repeat-glyph" aria-label="Recurring">↻</span>{" "}{/if}{todo.title}
+            </span>
           </label>
-          <button class="del" aria-label="Delete task" onclick={() => db.delete(app.todos, todo.id)}>
-            <svg width="9" height="9" viewBox="0 0 9 9" fill="none" aria-hidden="true">
-              <path d="M1 1l7 7M8 1L1 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-            </svg>
-          </button>
+          {#if !todo.isVirtual}
+            <button class="del" aria-label="Delete task" onclick={() => db.delete(app.todos, todo.id)}>
+              <svg width="9" height="9" viewBox="0 0 9 9" fill="none" aria-hidden="true">
+                <path d="M1 1l7 7M8 1L1 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+              </svg>
+            </button>
+          {/if}
           {#if showCalDots}
             <button
               class="cal-bar"
-              class:clickable={todo.creatorId === session?.user_id}
+              class:clickable={!todo.isVirtual && todo.creatorId === session?.user_id}
               style="background: {calendarMap.get(todo.calendarId ?? '')?.colour ?? '#888'}"
               title={calendarMap.get(todo.calendarId ?? '')?.name}
-              onclick={(e) => openCalPicker(e, todo)}
+              onclick={!todo.isVirtual ? (e) => openCalPicker(e, todo as Todo) : undefined}
               tabindex="-1"
               aria-label="Change calendar"
             ></button>
@@ -1170,6 +1265,14 @@
   .row.editing input::placeholder { color: #ccc; }
 
   /* ── Empty slot ── */
+
+  .row.virtual {
+    cursor: default;
+  }
+
+  .row.virtual .cb {
+    cursor: pointer;
+  }
 
   .row.empty {
     padding: 0;

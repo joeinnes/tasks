@@ -1,6 +1,15 @@
 <script lang="ts">
+  import RecurrenceForm from "$lib/RecurrenceForm.svelte";
+  import type { Rule, Mode } from "$lib/recurrence";
+
   type Calendar = { id: string; name: string; colour: string };
-  type TaskValues = { title: string; date: string; calendarId: string };
+  type TaskValues = {
+    title: string;
+    date: string;
+    calendarId: string;
+    rule?: Rule;
+    seriesMode?: Mode;
+  };
 
   type Props = {
     open: boolean;
@@ -9,6 +18,8 @@
     initialDate: string;
     initialTitle?: string;
     initialCalendarId?: string;
+    initialRule?: Rule | null;
+    initialSeriesMode?: Mode | null;
     mode?: "create" | "edit";
     onsave: (values: TaskValues) => void;
     ondelete?: () => void;
@@ -22,6 +33,8 @@
     initialDate,
     initialTitle = "",
     initialCalendarId,
+    initialRule = null,
+    initialSeriesMode = null,
     mode = "create",
     onsave,
     ondelete,
@@ -31,12 +44,33 @@
   let title = $state("");
   let date = $state("");
   let calendarId = $state("");
+  let isRecurring = $state(false);
+  let rule = $state<Rule>(defaultRule(""));
+  let seriesMode = $state<Mode>("schedule");
+
+  function defaultRule(start: string): Rule {
+    return {
+      startDate: start,
+      freq: "DAILY",
+      interval: 1,
+      endCondition: "never",
+    };
+  }
 
   $effect(() => {
     if (open) {
       title = initialTitle;
       date = initialDate;
       calendarId = initialCalendarId ?? defaultCalendarId ?? calendars[0]?.id ?? "";
+      isRecurring = !!initialRule;
+      rule = initialRule ?? defaultRule(initialDate);
+      seriesMode = initialSeriesMode ?? "schedule";
+    }
+  });
+
+  $effect(() => {
+    if (isRecurring && rule.startDate !== date) {
+      rule = { ...rule, startDate: date };
     }
   });
 
@@ -44,7 +78,13 @@
     e.preventDefault();
     const trimmed = title.trim();
     if (!trimmed || !date || !calendarId) return;
-    onsave({ title: trimmed, date, calendarId });
+    onsave({
+      title: trimmed,
+      date,
+      calendarId,
+      rule: isRecurring ? rule : undefined,
+      seriesMode: isRecurring ? seriesMode : undefined,
+    });
   }
 
   function handleBackdropClick(e: MouseEvent) {
@@ -89,6 +129,38 @@
             {/each}
           </select>
         </label>
+
+        <label class="recurring-toggle">
+          <input type="checkbox" bind:checked={isRecurring} />
+          <span class="label">Recurring</span>
+        </label>
+
+        {#if isRecurring}
+          <RecurrenceForm value={rule} onchange={(v) => (rule = v)} />
+          <div class="mode-row">
+            <span class="label">Schedule mode</span>
+            <label class="mode-option">
+              <input
+                type="radio"
+                name="series-mode"
+                value="schedule"
+                checked={seriesMode === "schedule"}
+                onchange={() => (seriesMode = "schedule")}
+              />
+              <span>Per schedule</span>
+            </label>
+            <label class="mode-option">
+              <input
+                type="radio"
+                name="series-mode"
+                value="since-completion"
+                checked={seriesMode === "since-completion"}
+                onchange={() => (seriesMode = "since-completion")}
+              />
+              <span>Since last completion</span>
+            </label>
+          </div>
+        {/if}
 
         <div class="actions">
           {#if mode === "edit" && ondelete}
@@ -162,6 +234,33 @@
   input[type="date"]:focus,
   select:focus {
     border-bottom-color: var(--accent, #000);
+  }
+
+  .recurring-toggle {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    cursor: pointer;
+  }
+
+  .recurring-toggle input[type="checkbox"] {
+    margin: 0;
+  }
+
+  .mode-row {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    margin-top: 0.25rem;
+  }
+
+  .mode-option {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    cursor: pointer;
+    font-size: 0.75rem;
+    color: #444;
   }
 
   .actions {
