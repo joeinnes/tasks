@@ -27,6 +27,7 @@ const schema = {
     calendarId: s.string(),
     creatorId: s.string(),
     seriesId: s.string().optional(),
+    tombstone: s.boolean().optional(),
   }),
   task_series: s.table({
     title: s.string(),

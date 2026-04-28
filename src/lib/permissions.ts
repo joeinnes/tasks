@@ -47,4 +47,82 @@ export default s.definePermissions(app, ({ policy, session, anyOf, isCreator }) 
       userId: session.user_id,
     })
   );
+
+  // Events: same model as todos — members of the event's calendar only
+  policy.events.allowRead.where((row) =>
+    policy.calendar_members.exists.where({
+      calendarId: row.calendarId,
+      userId: session.user_id,
+    })
+  );
+  policy.events.allowInsert.where((row) =>
+    policy.calendar_members.exists.where({
+      calendarId: row.calendarId,
+      userId: session.user_id,
+    })
+  );
+  policy.events.allowUpdate.where((row) =>
+    policy.calendar_members.exists.where({
+      calendarId: row.calendarId,
+      userId: session.user_id,
+    })
+  );
+  policy.events.allowDelete.where((row) =>
+    policy.calendar_members.exists.where({
+      calendarId: row.calendarId,
+      userId: session.user_id,
+    })
+  );
+
+  // Task series: same model — members of the series' calendar only
+  policy.task_series.allowRead.where((row) =>
+    policy.calendar_members.exists.where({
+      calendarId: row.calendarId,
+      userId: session.user_id,
+    })
+  );
+  policy.task_series.allowInsert.where((row) =>
+    policy.calendar_members.exists.where({
+      calendarId: row.calendarId,
+      userId: session.user_id,
+    })
+  );
+  policy.task_series.allowUpdate.where((row) =>
+    policy.calendar_members.exists.where({
+      calendarId: row.calendarId,
+      userId: session.user_id,
+    })
+  );
+  policy.task_series.allowDelete.where((row) =>
+    policy.calendar_members.exists.where({
+      calendarId: row.calendarId,
+      userId: session.user_id,
+    })
+  );
+
+  // Event series: same model — members of the series' calendar only
+  policy.event_series.allowRead.where((row) =>
+    policy.calendar_members.exists.where({
+      calendarId: row.calendarId,
+      userId: session.user_id,
+    })
+  );
+  policy.event_series.allowInsert.where((row) =>
+    policy.calendar_members.exists.where({
+      calendarId: row.calendarId,
+      userId: session.user_id,
+    })
+  );
+  policy.event_series.allowUpdate.where((row) =>
+    policy.calendar_members.exists.where({
+      calendarId: row.calendarId,
+      userId: session.user_id,
+    })
+  );
+  policy.event_series.allowDelete.where((row) =>
+    policy.calendar_members.exists.where({
+      calendarId: row.calendarId,
+      userId: session.user_id,
+    })
+  );
 });

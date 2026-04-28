@@ -496,13 +496,17 @@
 
     if (change.kind === "delete-event-series") {
       if (choice === "this-only") {
-        // Insert a tombstone-style real event with same date+seriesId; render filters empties.
+        // Insert an explicit tombstone row so the materialiser suppresses the
+        // virtual on the cutoff day; render filters tombstones from view.
+        const series = (eventSeriesQuery.current ?? []).find(r => r.id === change.seriesId);
+        if (!series) return;
         db.insert(app.events, {
-          title: "",
+          title: series.title,
           date: change.cutoffDate,
-          calendarId: "",
+          calendarId: series.calendarId,
           creatorId: uid,
           seriesId: change.seriesId,
+          tombstone: true,
         });
       } else if (choice === "this-and-future") {
         db.update(app.event_series, change.seriesId, {
@@ -812,7 +816,7 @@
     const visible = visibleCalendarIds;
     const realRows = events.current ?? [];
     const reals = eventsForDay(realRows, date, visible)
-      .filter(e => e.title !== "")
+      .filter(e => !e.tombstone)
       .map<RenderedEvent>(e => ({
       id: e.id,
       title: e.title,

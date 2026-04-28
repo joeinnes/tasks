@@ -5,6 +5,8 @@ export type Event = {
   time?: string | null;
   calendarId: string;
   creatorId: string;
+  seriesId?: string | null;
+  tombstone?: boolean | null;
 };
 
 export type EventLike = {
