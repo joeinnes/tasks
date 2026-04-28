@@ -6,6 +6,7 @@
   import { virtualEventsForDay, type EventSeriesData, type VirtualEvent } from "$lib/materialisation";
   import type { Rule, Freq, Weekday, EndCondition } from "$lib/recurrence";
   import EventModal from "$lib/EventModal.svelte";
+  import TaskModal from "$lib/TaskModal.svelte";
 
   type Calendar = { id: string; name: string; colour: string; creatorId: string; isPersonal: boolean };
   type Member   = { id: string; calendarId: string; userId: string };
@@ -158,6 +159,31 @@
   let dragOverRow  = $state<{ date: string | null; index: number } | null>(null);
   let calPicker    = $state<{ todoId: string; x: number; y: number } | null>(null);
   let eventModal   = $state<{ date: string; eventId?: string } | null>(null);
+  let taskModal    = $state<{ date: string; initialTitle: string } | null>(null);
+
+  function openTaskModalFromInline(date: string | null) {
+    const initialTitle = newTaskTitle;
+    editingSlot = null;
+    newTaskTitle = "";
+    taskModal = { date: date ?? todayStr, initialTitle };
+  }
+
+  function closeTaskModal() {
+    taskModal = null;
+  }
+
+  function saveTaskFromModal(values: { title: string; date: string; calendarId: string }) {
+    if (!session?.user_id) return;
+    db.insert(app.todos, {
+      title: values.title,
+      done: false,
+      date: values.date,
+      calendarId: values.calendarId,
+      creatorId: session.user_id,
+      position: Math.floor(Date.now() / 1000),
+    });
+    taskModal = null;
+  }
 
   const editingEvent = $derived.by(() => {
     if (!eventModal?.eventId) return null;
@@ -496,6 +522,17 @@
               placeholder="New task…"
             />
           </form>
+          <button
+            type="button"
+            class="expand-chevron"
+            onmousedown={(e) => { e.preventDefault(); openTaskModalFromInline(date); }}
+            aria-label="More options"
+            title="More options"
+          >
+            <svg width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden="true">
+              <path d="M2 4l3 3 3-3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </button>
         </li>
       {:else}
         <li class="row empty">
@@ -662,6 +699,16 @@
   onsave={saveEvent}
   ondelete={editingEvent ? () => deleteEvent(editingEvent!.id) : undefined}
   onclose={closeEventModal}
+/>
+
+<TaskModal
+  open={taskModal !== null}
+  calendars={myCalendars}
+  defaultCalendarId={personalCal.id}
+  initialDate={taskModal?.date ?? todayStr}
+  initialTitle={taskModal?.initialTitle ?? ""}
+  onsave={saveTaskFromModal}
+  onclose={closeTaskModal}
 />
 
 <style>
@@ -1090,6 +1137,23 @@
     display: flex;
     align-items: center;
   }
+
+  .expand-chevron {
+    background: none;
+    border: none;
+    padding: 0;
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #aaa;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: color 0.1s;
+  }
+
+  .expand-chevron:hover { color: #000; }
 
   .row.editing input {
     width: 100%;
