@@ -2,19 +2,59 @@
   import { getDb, getSession, QuerySubscription } from "jazz-tools/svelte";
   import { app } from "$lib/schema";
   import { isVisible, personalCal } from "$lib/calendars.svelte";
-  import { eventsForDay, type Event } from "$lib/events";
+  import { eventsForDay, sortEventLikes, type Event, type EventLike } from "$lib/events";
+  import { virtualEventsForDay, type EventSeriesData, type VirtualEvent } from "$lib/materialisation";
+  import type { Rule, Freq, Weekday, EndCondition } from "$lib/recurrence";
   import EventModal from "$lib/EventModal.svelte";
 
   type Calendar = { id: string; name: string; colour: string; creatorId: string; isPersonal: boolean };
   type Member   = { id: string; calendarId: string; userId: string };
   type Todo     = { id: string; title: string; done: boolean; date: string; calendarId?: string; creatorId?: string; position?: number };
+  type EventSeriesRow = {
+    id: string;
+    title: string;
+    calendarId: string;
+    creatorId: string;
+    time?: string | null;
+    startDate: string;
+    freq: string;
+    interval: number;
+    byDay?: string | null;
+    byMonthDay?: number | null;
+    bySetPos?: number | null;
+    endCondition: string;
+    endDate?: string | null;
+    count?: number | null;
+  };
 
   const db      = getDb();
   const session = getSession();
   const todos   = new QuerySubscription<Todo>(app.todos);
   const events  = new QuerySubscription<Event>(app.events);
+  const eventSeriesQuery = new QuerySubscription<EventSeriesRow>(app.event_series);
   const allCals = new QuerySubscription<Calendar>(app.calendars);
   const allMembers = new QuerySubscription<Member>(app.calendar_members);
+
+  function eventSeriesToData(row: EventSeriesRow): EventSeriesData {
+    return {
+      id: row.id,
+      title: row.title,
+      time: row.time ?? null,
+      calendarId: row.calendarId,
+      creatorId: row.creatorId,
+      rule: {
+        startDate: row.startDate,
+        freq: row.freq as Freq,
+        interval: row.interval,
+        byDay: row.byDay ? (row.byDay.split(",") as Weekday[]) : undefined,
+        byMonthDay: row.byMonthDay ?? undefined,
+        bySetPos: row.bySetPos ?? undefined,
+        endCondition: row.endCondition as EndCondition,
+        endDate: row.endDate ?? undefined,
+        count: row.count ?? undefined,
+      },
+    };
+  }
 
   let todayStr = $state(new Date().toISOString().split("T")[0]);
   let currentStartDate = $state(new Date());
@@ -128,7 +168,9 @@
     eventModal = { date };
   }
 
-  function openEditEvent(event: Event) {
+  function openEditEvent(eventId: string) {
+    const event = (events.current ?? []).find(e => e.id === eventId);
+    if (!event) return;
     eventModal = { date: event.date, eventId: event.id };
   }
 
@@ -324,8 +366,40 @@
     return [...items, ...new Array<null>(count - items.length).fill(null)];
   }
 
-  function getEventsForDate(date: string): Event[] {
-    return eventsForDay(events.current ?? [], date, visibleCalendarIds);
+  type RenderedEvent = EventLike & {
+    isVirtual: boolean;
+    seriesId?: string;
+  };
+
+  const eventSeriesData = $derived.by(() =>
+    (eventSeriesQuery.current ?? []).map(eventSeriesToData)
+  );
+
+  function getEventsForDate(date: string): RenderedEvent[] {
+    const visible = visibleCalendarIds;
+    const realRows = events.current ?? [];
+    const reals = eventsForDay(realRows, date, visible).map<RenderedEvent>(e => ({
+      id: e.id,
+      title: e.title,
+      date: e.date,
+      time: e.time,
+      calendarId: e.calendarId,
+      isVirtual: false,
+      seriesId: undefined,
+    }));
+    const virtualsAll = virtualEventsForDay(date, eventSeriesData, realRows);
+    const virtuals = virtualsAll
+      .filter(v => visible.has(v.calendarId))
+      .map<RenderedEvent>(v => ({
+        id: v.id,
+        title: v.title,
+        date: v.date,
+        time: v.time,
+        calendarId: v.calendarId,
+        isVirtual: true,
+        seriesId: v.seriesId,
+      }));
+    return sortEventLikes([...reals, ...virtuals]);
   }
 </script>
 
@@ -429,28 +503,37 @@
       {#each items as event (event.id)}
         <li
           class="event-row"
-          draggable="true"
-          ondragstart={(e) => handleEventDragStart(e, event.id)}
+          class:virtual={event.isVirtual}
+          draggable={!event.isVirtual}
+          ondragstart={!event.isVirtual ? (e) => handleEventDragStart(e, event.id) : undefined}
         >
-          <button
-            type="button"
-            class="event-clickable"
-            onclick={() => openEditEvent(event)}
-          >
-            <span class="event-title">
-              {#if event.time}<span class="event-time">{event.time}</span>{" "}{/if}{event.title}
+          {#if event.isVirtual}
+            <span class="event-clickable event-static">
+              <span class="event-title">
+                {#if event.time}<span class="event-time">{event.time}</span>{" "}{/if}<span class="repeat-glyph" aria-label="Recurring">↻</span>{" "}{event.title}
+              </span>
             </span>
-          </button>
-          <button
-            type="button"
-            class="del event-del"
-            aria-label="Delete event"
-            onclick={() => deleteEvent(event.id)}
-          >
-            <svg width="9" height="9" viewBox="0 0 9 9" fill="none" aria-hidden="true">
-              <path d="M1 1l7 7M8 1L1 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-            </svg>
-          </button>
+          {:else}
+            <button
+              type="button"
+              class="event-clickable"
+              onclick={() => openEditEvent(event.id)}
+            >
+              <span class="event-title">
+                {#if event.time}<span class="event-time">{event.time}</span>{" "}{/if}{event.title}
+              </span>
+            </button>
+            <button
+              type="button"
+              class="del event-del"
+              aria-label="Delete event"
+              onclick={() => deleteEvent(event.id)}
+            >
+              <svg width="9" height="9" viewBox="0 0 9 9" fill="none" aria-hidden="true">
+                <path d="M1 1l7 7M8 1L1 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+              </svg>
+            </button>
+          {/if}
           {#if showCalDots}
             <span
               class="cal-bar"
@@ -772,6 +855,16 @@
     text-align: left;
     cursor: pointer;
     height: 100%;
+  }
+
+  .event-static {
+    cursor: default;
+  }
+
+  .repeat-glyph {
+    color: #aaa;
+    font-size: 0.75rem;
+    margin-right: 0.125rem;
   }
 
   .event-title {
