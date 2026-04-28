@@ -117,10 +117,19 @@
   let dragOverZone = $state<string | undefined>(undefined);
   let dragOverRow  = $state<{ date: string | null; index: number } | null>(null);
   let calPicker    = $state<{ todoId: string; x: number; y: number } | null>(null);
-  let eventModal   = $state<{ date: string } | null>(null);
+  let eventModal   = $state<{ date: string; eventId?: string } | null>(null);
+
+  const editingEvent = $derived.by(() => {
+    if (!eventModal?.eventId) return null;
+    return (events.current ?? []).find(e => e.id === eventModal!.eventId) ?? null;
+  });
 
   function openCreateEvent(date: string) {
     eventModal = { date };
+  }
+
+  function openEditEvent(event: Event) {
+    eventModal = { date: event.date, eventId: event.id };
   }
 
   function closeEventModal() {
@@ -129,13 +138,27 @@
 
   function saveEvent(values: { title: string; date: string; time: string; calendarId: string }) {
     if (!session?.user_id) return;
-    db.insert(app.events, {
-      title: values.title,
-      date: values.date,
-      time: values.time || undefined,
-      calendarId: values.calendarId,
-      creatorId: session.user_id,
-    });
+    if (eventModal?.eventId) {
+      db.update(app.events, eventModal.eventId, {
+        title: values.title,
+        date: values.date,
+        time: values.time || undefined,
+        calendarId: values.calendarId,
+      });
+    } else {
+      db.insert(app.events, {
+        title: values.title,
+        date: values.date,
+        time: values.time || undefined,
+        calendarId: values.calendarId,
+        creatorId: session.user_id,
+      });
+    }
+    eventModal = null;
+  }
+
+  function deleteEvent(id: string) {
+    db.delete(app.events, id);
     eventModal = null;
   }
 
@@ -381,9 +404,25 @@
     <ul class="event-list">
       {#each items as event (event.id)}
         <li class="event-row">
-          <span class="event-title">
-            {#if event.time}<span class="event-time">{event.time}</span>{" "}{/if}{event.title}
-          </span>
+          <button
+            type="button"
+            class="event-clickable"
+            onclick={() => openEditEvent(event)}
+          >
+            <span class="event-title">
+              {#if event.time}<span class="event-time">{event.time}</span>{" "}{/if}{event.title}
+            </span>
+          </button>
+          <button
+            type="button"
+            class="del event-del"
+            aria-label="Delete event"
+            onclick={() => deleteEvent(event.id)}
+          >
+            <svg width="9" height="9" viewBox="0 0 9 9" fill="none" aria-hidden="true">
+              <path d="M1 1l7 7M8 1L1 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+            </svg>
+          </button>
           {#if showCalDots}
             <span
               class="cal-bar"
@@ -488,8 +527,13 @@
   open={eventModal !== null}
   calendars={myCalendars}
   defaultCalendarId={personalCal.id}
-  initialDate={eventModal?.date ?? todayStr}
+  initialDate={editingEvent?.date ?? eventModal?.date ?? todayStr}
+  initialTitle={editingEvent?.title ?? ""}
+  initialTime={editingEvent?.time ?? null}
+  initialCalendarId={editingEvent?.calendarId}
+  mode={eventModal?.eventId ? "edit" : "create"}
   onsave={saveEvent}
+  ondelete={editingEvent ? () => deleteEvent(editingEvent!.id) : undefined}
   onclose={closeEventModal}
 />
 
@@ -680,6 +724,22 @@
     border-bottom: 1px solid #f0f0f0;
   }
 
+  .event-row:hover { background: #f8f8f8; }
+
+  .event-clickable {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    background: none;
+    border: none;
+    padding: 0;
+    margin: 0;
+    text-align: left;
+    cursor: pointer;
+    height: 100%;
+  }
+
   .event-title {
     flex: 1;
     min-width: 0;
@@ -702,6 +762,8 @@
     margin-right: -0.75rem;
     cursor: default;
   }
+
+  .event-row:hover .event-del { opacity: 1; }
 
   @media (max-width: 480px) {
     .event-row {
