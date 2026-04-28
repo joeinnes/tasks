@@ -61,6 +61,7 @@
 
   function submitCreate(e: SubmitEvent | FocusEvent) {
     if (e instanceof SubmitEvent) e.preventDefault();
+    if (!creating) return;
     const name = newName.trim();
     creating = false;
     if (!name || !session?.user_id) return;

@@ -122,10 +122,12 @@
 
   function submitNewTask(e: SubmitEvent | FocusEvent, date: string | null) {
     e.preventDefault();
+    if (!editingSlot) return;
     const title = newTaskTitle.trim();
-    if (!title || !session?.user_id) { editingSlot = null; return; }
+    editingSlot = null;
+    if (!title || !session?.user_id) return;
     const calendarId = personalCal.id ?? myCalendars[0]?.id;
-    if (!calendarId) { editingSlot = null; return; }
+    if (!calendarId) return;
     db.insert(app.todos, {
       title,
       done: false,
@@ -134,7 +136,6 @@
       creatorId: session.user_id,
       position: Math.floor(Date.now() / 1000),
     });
-    editingSlot = null;
   }
 
   function startEditing(todo: Todo) {
