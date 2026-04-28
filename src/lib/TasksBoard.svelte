@@ -2,6 +2,7 @@
   import { getDb, getSession, QuerySubscription } from "jazz-tools/svelte";
   import { app } from "$lib/schema";
   import { isVisible, personalCal } from "$lib/calendars.svelte";
+  import { eventsForDay, type Event } from "$lib/events";
 
   type Calendar = { id: string; name: string; colour: string; creatorId: string; isPersonal: boolean };
   type Member   = { id: string; calendarId: string; userId: string };
@@ -10,6 +11,7 @@
   const db      = getDb();
   const session = getSession();
   const todos   = new QuerySubscription<Todo>(app.todos);
+  const events  = new QuerySubscription<Event>(app.events);
   const allCals = new QuerySubscription<Calendar>(app.calendars);
   const allMembers = new QuerySubscription<Member>(app.calendar_members);
 
@@ -252,6 +254,10 @@
     const count = Math.max(MIN_SLOTS, items.length + 1);
     return [...items, ...new Array<null>(count - items.length).fill(null)];
   }
+
+  function getEventsForDate(date: string): Event[] {
+    return eventsForDay(events.current ?? [], date, visibleCalendarIds);
+  }
 </script>
 
 {#if calPicker}
@@ -347,6 +353,30 @@
   </ul>
 {/snippet}
 
+{#snippet eventsBlock(date: string)}
+  {@const items = getEventsForDate(date)}
+  {#if items.length > 0}
+    <ul class="event-list">
+      {#each items as event (event.id)}
+        <li class="event-row">
+          <span class="event-title">
+            {#if event.time}<span class="event-time">{event.time}</span>{" "}{/if}{event.title}
+          </span>
+          {#if showCalDots}
+            <span
+              class="cal-bar"
+              style="background: {calendarMap.get(event.calendarId)?.colour ?? '#888'}"
+              title={calendarMap.get(event.calendarId)?.name}
+              aria-label="Event calendar"
+            ></span>
+          {/if}
+        </li>
+      {/each}
+    </ul>
+    <div class="event-task-divider"></div>
+  {/if}
+{/snippet}
+
 <div class="wrap" bind:this={wrapEl}>
   <nav class="nav" aria-label="Week navigation">
     <button class="arrow" onclick={prevDay} aria-label="Previous day">
@@ -396,6 +426,7 @@
           <span class="col-day">{col.label}</span>
           <span class="col-date">{col.sublabel}</span>
         </div>
+        {@render eventsBlock(col.date)}
         {@render taskList(col.date, getSlotsForDate(col.date))}
       </div>
     {/each}
@@ -553,6 +584,57 @@
   .col.today .col-date {
     color: var(--accent, #000);
     font-weight: 600;
+  }
+
+  /* ── Event list ── */
+
+  .event-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  .event-row {
+    height: 2rem;
+    display: flex;
+    align-items: center;
+    padding: 0 0.75rem;
+    border-bottom: 1px solid #f0f0f0;
+  }
+
+  .event-title {
+    flex: 1;
+    min-width: 0;
+    font-size: 0.8125rem;
+    font-weight: 400;
+    color: #111;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .event-time {
+    font-style: italic;
+    color: #888;
+    margin-right: 0.25rem;
+  }
+
+  .event-row .cal-bar {
+    margin-left: auto;
+    margin-right: -0.75rem;
+    cursor: default;
+  }
+
+  @media (max-width: 480px) {
+    .event-row {
+      height: 2.75rem;
+    }
+  }
+
+  .event-task-divider {
+    height: 1px;
+    background: #d0d0d0;
+    margin: 0.25rem 0;
   }
 
   /* ── Task list ── */

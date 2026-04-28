@@ -19,6 +19,13 @@ const schema = {
     creatorId: s.string().optional(),
     position: s.int().optional(),
   }),
+  events: s.table({
+    title: s.string(),
+    date: s.string(),
+    time: s.string().optional(),
+    calendarId: s.string(),
+    creatorId: s.string(),
+  }),
 };
 
 type AppSchema = s.Schema<typeof schema>;
