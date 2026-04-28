@@ -126,7 +126,20 @@
   });
 
   function toggleDone(todo: RenderedTask) {
-    if (todo.isVirtual) return; // wired in slice 10
+    if (todo.isVirtual) {
+      if (!todo.seriesId || !session?.user_id) return;
+      // Materialise the virtual outstanding as a completed history row on its scheduled date.
+      db.insert(app.todos, {
+        title: todo.title,
+        done: true,
+        date: todo.date,
+        calendarId: todo.calendarId,
+        creatorId: todo.creatorId ?? session.user_id,
+        position: Math.floor(Date.now() / 1000),
+        seriesId: todo.seriesId,
+      });
+      return;
+    }
     const update: { done: boolean; date?: string } = { done: !todo.done };
     if (!todo.done && todo.date && todo.date < todayStr) {
       update.date = todayStr;

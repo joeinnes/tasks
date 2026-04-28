@@ -237,6 +237,26 @@ describe("outstandingFor", () => {
     );
   });
 
+  it("schedule mode: completing today's daily advances to next scheduled day strictly after today", () => {
+    const rule = baseRule({ startDate: "2026-01-01", freq: "DAILY", interval: 1 });
+    expect(outstandingFor(rule, "schedule", ["2026-01-15"], "2026-01-15")).toBe(
+      "2026-01-16",
+    );
+  });
+
+  it("schedule mode weekly: completing today's Monday advances to next Monday", () => {
+    // 2026-01-05 is a Monday
+    const rule = baseRule({
+      startDate: "2026-01-05",
+      freq: "WEEKLY",
+      interval: 1,
+      byDay: ["MO"],
+    });
+    expect(outstandingFor(rule, "schedule", ["2026-01-05"], "2026-01-05")).toBe(
+      "2026-01-12",
+    );
+  });
+
   it("returns null when end condition has been reached", () => {
     const rule = baseRule({
       startDate: "2026-01-01",

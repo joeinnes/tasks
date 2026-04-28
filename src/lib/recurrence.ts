@@ -170,5 +170,12 @@ export function outstandingFor(
     if (rule.endCondition === "on-date" && rule.endDate && candidate > rule.endDate) return null;
     return candidate;
   }
-  return nextOccurrenceOnOrAfter(rule, today);
+  // schedule mode: next scheduled day strictly after the most recent completion, or today
+  // (whichever is later).
+  if (completionDates.length === 0) {
+    return nextOccurrenceOnOrAfter(rule, today);
+  }
+  const last = completionDates.reduce((a, b) => (a > b ? a : b));
+  const target = last >= today ? addDays(last, 1) : today;
+  return nextOccurrenceOnOrAfter(rule, target);
 }
