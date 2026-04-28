@@ -7,6 +7,8 @@
   import type { Rule, Freq, Weekday, EndCondition, Mode } from "$lib/recurrence";
   import EventModal from "$lib/EventModal.svelte";
   import TaskModal from "$lib/TaskModal.svelte";
+  import ThreeWayPrompt from "$lib/ThreeWayPrompt.svelte";
+  import { addDays as addDaysToISO } from "$lib/recurrence";
 
   type Calendar = { id: string; name: string; colour: string; creatorId: string; isPersonal: boolean };
   type Member   = { id: string; calendarId: string; userId: string };
@@ -211,8 +213,29 @@
   let dragOverZone = $state<string | undefined>(undefined);
   let dragOverRow  = $state<{ date: string | null; index: number } | null>(null);
   let calPicker    = $state<{ todoId: string; x: number; y: number } | null>(null);
-  let eventModal   = $state<{ date: string; eventId?: string } | null>(null);
-  let taskModal    = $state<{ date: string; initialTitle: string } | null>(null);
+  let eventModal   = $state<{ date: string; eventId?: string; seriesId?: string; cutoffDate?: string } | null>(null);
+  let taskModal    = $state<{ date: string; initialTitle: string; seriesId?: string; cutoffDate?: string } | null>(null);
+
+  type EventValues = { title: string; date: string; time: string; calendarId: string; rule?: Rule };
+  type TaskValues = { title: string; date: string; calendarId: string; rule?: Rule; seriesMode?: Mode };
+
+  type PendingChange =
+    | { kind: "edit-event-series"; seriesId: string; cutoffDate: string; values: EventValues }
+    | { kind: "delete-event-series"; seriesId: string; cutoffDate: string }
+    | { kind: "edit-task-series"; seriesId: string; cutoffDate: string; values: TaskValues }
+    | { kind: "delete-task-series"; seriesId: string; cutoffDate: string };
+
+  let pendingPrompt = $state<PendingChange | null>(null);
+
+  const editingEventSeries = $derived.by(() => {
+    if (!eventModal?.seriesId) return null;
+    return (eventSeriesQuery.current ?? []).find(r => r.id === eventModal!.seriesId) ?? null;
+  });
+
+  const editingTaskSeries = $derived.by(() => {
+    if (!taskModal?.seriesId) return null;
+    return (taskSeriesQuery.current ?? []).find(r => r.id === taskModal!.seriesId) ?? null;
+  });
 
   function openTaskModalFromInline(date: string | null) {
     const initialTitle = newTaskTitle;
@@ -227,20 +250,37 @@
 
   function saveTaskFromModal(values: { title: string; date: string; calendarId: string; rule?: Rule; seriesMode?: Mode }) {
     if (!session?.user_id) return;
+    if (taskModal?.seriesId && taskModal?.cutoffDate) {
+      const currentSeries = (taskSeriesQuery.current ?? []).find(r => r.id === taskModal!.seriesId);
+      if (!currentSeries) { taskModal = null; return; }
+      const oldRule = taskSeriesRowToRule(currentSeries);
+      const ruleChanged = !rulesEqual(oldRule, values.rule);
+      const modeChanged = currentSeries.mode !== values.seriesMode;
+      if ((ruleChanged || modeChanged) && values.rule && values.seriesMode) {
+        pendingPrompt = {
+          kind: "edit-task-series",
+          seriesId: taskModal.seriesId,
+          cutoffDate: taskModal.cutoffDate,
+          values,
+        };
+        taskModal = null;
+        return;
+      }
+      db.update(app.task_series, taskModal.seriesId, {
+        title: values.title,
+        calendarId: values.calendarId,
+        ...(values.rule ? ruleToSeriesFields(values.rule) : {}),
+        ...(values.seriesMode ? { mode: values.seriesMode } : {}),
+      });
+      taskModal = null;
+      return;
+    }
     if (values.rule && values.seriesMode) {
       db.insert(app.task_series, {
         title: values.title,
         calendarId: values.calendarId,
         creatorId: session.user_id,
-        startDate: values.rule.startDate,
-        freq: values.rule.freq,
-        interval: values.rule.interval,
-        byDay: values.rule.byDay && values.rule.byDay.length > 0 ? values.rule.byDay.join(",") : undefined,
-        byMonthDay: values.rule.byMonthDay,
-        bySetPos: values.rule.bySetPos,
-        endCondition: values.rule.endCondition,
-        endDate: values.rule.endDate,
-        count: values.rule.count,
+        ...ruleToSeriesFields(values.rule),
         mode: values.seriesMode,
       });
     } else {
@@ -271,12 +311,106 @@
     eventModal = { date: event.date, eventId: event.id };
   }
 
+  function openEditEventSeries(seriesId: string, cutoffDate: string) {
+    const series = (eventSeriesQuery.current ?? []).find(r => r.id === seriesId);
+    if (!series) return;
+    eventModal = { date: cutoffDate, seriesId, cutoffDate };
+  }
+
+  function openEditTaskSeries(seriesId: string, cutoffDate: string) {
+    taskModal = { date: cutoffDate, initialTitle: "", seriesId, cutoffDate };
+  }
+
+  function rulesEqual(a: Rule | undefined, b: Rule | undefined): boolean {
+    if (!a && !b) return true;
+    if (!a || !b) return false;
+    return (
+      a.startDate === b.startDate &&
+      a.freq === b.freq &&
+      a.interval === b.interval &&
+      JSON.stringify(a.byDay ?? null) === JSON.stringify(b.byDay ?? null) &&
+      (a.byMonthDay ?? null) === (b.byMonthDay ?? null) &&
+      (a.bySetPos ?? null) === (b.bySetPos ?? null) &&
+      a.endCondition === b.endCondition &&
+      (a.endDate ?? null) === (b.endDate ?? null) &&
+      (a.count ?? null) === (b.count ?? null)
+    );
+  }
+
+  function eventSeriesRowToRule(row: EventSeriesRow): Rule {
+    return {
+      startDate: row.startDate,
+      freq: row.freq as Freq,
+      interval: row.interval,
+      byDay: row.byDay ? (row.byDay.split(",") as Weekday[]) : undefined,
+      byMonthDay: row.byMonthDay ?? undefined,
+      bySetPos: row.bySetPos ?? undefined,
+      endCondition: row.endCondition as EndCondition,
+      endDate: row.endDate ?? undefined,
+      count: row.count ?? undefined,
+    };
+  }
+
+  function taskSeriesRowToRule(row: TaskSeriesRow): Rule {
+    return {
+      startDate: row.startDate,
+      freq: row.freq as Freq,
+      interval: row.interval,
+      byDay: row.byDay ? (row.byDay.split(",") as Weekday[]) : undefined,
+      byMonthDay: row.byMonthDay ?? undefined,
+      bySetPos: row.bySetPos ?? undefined,
+      endCondition: row.endCondition as EndCondition,
+      endDate: row.endDate ?? undefined,
+      count: row.count ?? undefined,
+    };
+  }
+
+  function ruleToSeriesFields(rule: Rule) {
+    return {
+      startDate: rule.startDate,
+      freq: rule.freq,
+      interval: rule.interval,
+      byDay: rule.byDay && rule.byDay.length > 0 ? rule.byDay.join(",") : undefined,
+      byMonthDay: rule.byMonthDay,
+      bySetPos: rule.bySetPos,
+      endCondition: rule.endCondition,
+      endDate: rule.endDate,
+      count: rule.count,
+    };
+  }
+
   function closeEventModal() {
     eventModal = null;
   }
 
   function saveEvent(values: { title: string; date: string; time: string; calendarId: string; rule?: Rule }) {
     if (!session?.user_id) return;
+    if (eventModal?.seriesId && eventModal?.cutoffDate) {
+      // Edit-series mode: detect rule changes and route through three-way if needed.
+      const currentSeries = (eventSeriesQuery.current ?? []).find(r => r.id === eventModal!.seriesId);
+      if (!currentSeries) { eventModal = null; return; }
+      const oldRule = eventSeriesRowToRule(currentSeries);
+      const ruleChanged = !rulesEqual(oldRule, values.rule);
+      if (ruleChanged && values.rule) {
+        pendingPrompt = {
+          kind: "edit-event-series",
+          seriesId: eventModal.seriesId,
+          cutoffDate: eventModal.cutoffDate,
+          values,
+        };
+        eventModal = null;
+        return;
+      }
+      // Non-rule edits apply to the whole series directly.
+      db.update(app.event_series, eventModal.seriesId, {
+        title: values.title,
+        time: values.time || undefined,
+        calendarId: values.calendarId,
+        ...(values.rule ? ruleToSeriesFields(values.rule) : {}),
+      });
+      eventModal = null;
+      return;
+    }
     if (eventModal?.eventId) {
       db.update(app.events, eventModal.eventId, {
         title: values.title,
@@ -290,15 +424,7 @@
         calendarId: values.calendarId,
         creatorId: session.user_id,
         time: values.time || undefined,
-        startDate: values.rule.startDate,
-        freq: values.rule.freq,
-        interval: values.rule.interval,
-        byDay: values.rule.byDay && values.rule.byDay.length > 0 ? values.rule.byDay.join(",") : undefined,
-        byMonthDay: values.rule.byMonthDay,
-        bySetPos: values.rule.bySetPos,
-        endCondition: values.rule.endCondition,
-        endDate: values.rule.endDate,
-        count: values.rule.count,
+        ...ruleToSeriesFields(values.rule),
       });
     } else {
       db.insert(app.events, {
@@ -315,6 +441,139 @@
   function deleteEvent(id: string) {
     db.delete(app.events, id);
     eventModal = null;
+  }
+
+  function requestDeleteEventSeries(seriesId: string, cutoffDate: string) {
+    pendingPrompt = { kind: "delete-event-series", seriesId, cutoffDate };
+    eventModal = null;
+  }
+
+  function requestDeleteTaskSeries(seriesId: string, cutoffDate: string) {
+    pendingPrompt = { kind: "delete-task-series", seriesId, cutoffDate };
+    taskModal = null;
+  }
+
+  function resolvePendingPrompt(choice: "this-only" | "this-and-future" | "all") {
+    const change = pendingPrompt;
+    pendingPrompt = null;
+    if (!change || !session?.user_id) return;
+    const uid = session.user_id;
+
+    if (change.kind === "edit-event-series") {
+      const v = change.values;
+      if (!v.rule) return;
+      if (choice === "this-only") {
+        // Materialise as a one-shot detached event at the cutoff date with new values.
+        db.insert(app.events, {
+          title: v.title,
+          date: change.cutoffDate,
+          time: v.time || undefined,
+          calendarId: v.calendarId,
+          creatorId: uid,
+        });
+      } else if (choice === "this-and-future") {
+        db.update(app.event_series, change.seriesId, {
+          endCondition: "on-date",
+          endDate: addDaysToISO(change.cutoffDate, -1),
+        });
+        db.insert(app.event_series, {
+          title: v.title,
+          calendarId: v.calendarId,
+          creatorId: uid,
+          time: v.time || undefined,
+          ...ruleToSeriesFields({ ...v.rule, startDate: change.cutoffDate }),
+        });
+      } else {
+        db.update(app.event_series, change.seriesId, {
+          title: v.title,
+          time: v.time || undefined,
+          calendarId: v.calendarId,
+          ...ruleToSeriesFields(v.rule),
+        });
+      }
+      return;
+    }
+
+    if (change.kind === "delete-event-series") {
+      if (choice === "this-only") {
+        // Insert a tombstone-style real event with same date+seriesId; render filters empties.
+        db.insert(app.events, {
+          title: "",
+          date: change.cutoffDate,
+          calendarId: "",
+          creatorId: uid,
+          seriesId: change.seriesId,
+        });
+      } else if (choice === "this-and-future") {
+        db.update(app.event_series, change.seriesId, {
+          endCondition: "on-date",
+          endDate: addDaysToISO(change.cutoffDate, -1),
+        });
+      } else {
+        db.delete(app.event_series, change.seriesId);
+      }
+      return;
+    }
+
+    if (change.kind === "edit-task-series") {
+      const v = change.values;
+      if (!v.rule || !v.seriesMode) return;
+      if (choice === "this-only") {
+        db.insert(app.todos, {
+          title: v.title,
+          done: false,
+          date: change.cutoffDate,
+          calendarId: v.calendarId,
+          creatorId: uid,
+          position: Math.floor(Date.now() / 1000),
+        });
+      } else if (choice === "this-and-future") {
+        db.update(app.task_series, change.seriesId, {
+          endCondition: "on-date",
+          endDate: addDaysToISO(change.cutoffDate, -1),
+        });
+        db.insert(app.task_series, {
+          title: v.title,
+          calendarId: v.calendarId,
+          creatorId: uid,
+          ...ruleToSeriesFields({ ...v.rule, startDate: change.cutoffDate }),
+          mode: v.seriesMode,
+        });
+      } else {
+        db.update(app.task_series, change.seriesId, {
+          title: v.title,
+          calendarId: v.calendarId,
+          ...ruleToSeriesFields(v.rule),
+          mode: v.seriesMode,
+        });
+      }
+      return;
+    }
+
+    if (change.kind === "delete-task-series") {
+      if (choice === "this-only") {
+        // Mark the cutoff occurrence as completed history so the engine advances.
+        const series = (taskSeriesQuery.current ?? []).find(r => r.id === change.seriesId);
+        if (!series) return;
+        db.insert(app.todos, {
+          title: series.title,
+          done: true,
+          date: change.cutoffDate,
+          calendarId: series.calendarId,
+          creatorId: uid,
+          position: Math.floor(Date.now() / 1000),
+          seriesId: series.id,
+        });
+      } else if (choice === "this-and-future") {
+        db.update(app.task_series, change.seriesId, {
+          endCondition: "on-date",
+          endDate: addDaysToISO(change.cutoffDate, -1),
+        });
+      } else {
+        db.delete(app.task_series, change.seriesId);
+      }
+      return;
+    }
   }
 
   function startAdding(date: string | null, index: number) {
@@ -552,7 +811,9 @@
   function getEventsForDate(date: string): RenderedEvent[] {
     const visible = visibleCalendarIds;
     const realRows = events.current ?? [];
-    const reals = eventsForDay(realRows, date, visible).map<RenderedEvent>(e => ({
+    const reals = eventsForDay(realRows, date, visible)
+      .filter(e => e.title !== "")
+      .map<RenderedEvent>(e => ({
       id: e.id,
       title: e.title,
       date: e.date,
@@ -628,7 +889,13 @@
             />
             <span
               class="task-title"
-              ondblclick={!todo.isVirtual ? () => startEditing(todo as Todo) : undefined}
+              ondblclick={
+                todo.isVirtual && todo.seriesId
+                  ? () => openEditTaskSeries(todo.seriesId!, todo.date)
+                  : !todo.isVirtual
+                    ? () => startEditing(todo as Todo)
+                    : undefined
+              }
             >
               {#if showRepeatGlyph}<span class="repeat-glyph" aria-label="Recurring">↻</span>{" "}{/if}{todo.title}
             </span>
@@ -704,11 +971,15 @@
           ondragstart={!event.isVirtual ? (e) => handleEventDragStart(e, event.id) : undefined}
         >
           {#if event.isVirtual}
-            <span class="event-clickable event-static">
+            <button
+              type="button"
+              class="event-clickable"
+              onclick={() => openEditEventSeries(event.seriesId!, event.date)}
+            >
               <span class="event-title">
                 {#if event.time}<span class="event-time">{event.time}</span>{" "}{/if}<span class="repeat-glyph" aria-label="Recurring">↻</span>{" "}{event.title}
               </span>
-            </span>
+            </button>
           {:else}
             <button
               type="button"
@@ -834,13 +1105,20 @@
   open={eventModal !== null}
   calendars={myCalendars}
   defaultCalendarId={personalCal.id}
-  initialDate={editingEvent?.date ?? eventModal?.date ?? todayStr}
-  initialTitle={editingEvent?.title ?? ""}
-  initialTime={editingEvent?.time ?? null}
-  initialCalendarId={editingEvent?.calendarId}
-  mode={eventModal?.eventId ? "edit" : "create"}
+  initialDate={editingEventSeries?.startDate ?? editingEvent?.date ?? eventModal?.date ?? todayStr}
+  initialTitle={editingEventSeries?.title ?? editingEvent?.title ?? ""}
+  initialTime={editingEventSeries?.time ?? editingEvent?.time ?? null}
+  initialCalendarId={editingEventSeries?.calendarId ?? editingEvent?.calendarId}
+  initialRule={editingEventSeries ? eventSeriesRowToRule(editingEventSeries) : null}
+  mode={eventModal?.eventId || eventModal?.seriesId ? "edit" : "create"}
   onsave={saveEvent}
-  ondelete={editingEvent ? () => deleteEvent(editingEvent!.id) : undefined}
+  ondelete={
+    editingEventSeries
+      ? () => requestDeleteEventSeries(editingEventSeries!.id, eventModal!.cutoffDate!)
+      : editingEvent
+        ? () => deleteEvent(editingEvent!.id)
+        : undefined
+  }
   onclose={closeEventModal}
 />
 
@@ -848,10 +1126,34 @@
   open={taskModal !== null}
   calendars={myCalendars}
   defaultCalendarId={personalCal.id}
-  initialDate={taskModal?.date ?? todayStr}
-  initialTitle={taskModal?.initialTitle ?? ""}
+  initialDate={editingTaskSeries?.startDate ?? taskModal?.date ?? todayStr}
+  initialTitle={editingTaskSeries?.title ?? taskModal?.initialTitle ?? ""}
+  initialCalendarId={editingTaskSeries?.calendarId}
+  initialRule={editingTaskSeries ? taskSeriesRowToRule(editingTaskSeries) : null}
+  initialSeriesMode={editingTaskSeries ? (editingTaskSeries.mode as Mode) : null}
+  mode={taskModal?.seriesId ? "edit" : "create"}
   onsave={saveTaskFromModal}
+  ondelete={
+    editingTaskSeries
+      ? () => requestDeleteTaskSeries(editingTaskSeries!.id, taskModal!.cutoffDate!)
+      : undefined
+  }
   onclose={closeTaskModal}
+/>
+
+<ThreeWayPrompt
+  open={pendingPrompt !== null}
+  title={
+    pendingPrompt?.kind.startsWith("delete") ? "Delete recurring item" : "Apply rule change"
+  }
+  message={
+    pendingPrompt?.kind.startsWith("delete")
+      ? "Choose how this delete applies to the series."
+      : "Choose how this change applies to the series."
+  }
+  actionLabel={pendingPrompt?.kind.startsWith("delete") ? "Delete" : "Apply to"}
+  onpick={resolvePendingPrompt}
+  onclose={() => (pendingPrompt = null)}
 />
 
 <style>
