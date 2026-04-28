@@ -32,9 +32,13 @@
     }
   });
 
-  // Auto-create personal calendar on first use
+  // Auto-create personal calendar on first use — runs at most once per session,
+  // so deleting your last personal calendar won't trigger an immediate re-create.
+  let autoCreateChecked = $state(false);
   $effect(() => {
+    if (autoCreateChecked) return;
     if (!session?.user_id || allCals.loading) return;
+    autoCreateChecked = true;
     const uid = session.user_id;
     const hasPersonal = (allCals.current ?? []).some(c => c.isPersonal && c.creatorId === uid);
     if (!hasPersonal) {
@@ -92,10 +96,14 @@
     const uid = session?.user_id;
     if (!uid) return;
     if (cal.creatorId === uid) {
-      // Creator deletes the calendar entirely
+      // Creator deletes the calendar entirely — destructive, confirm first.
+      const message = cal.isPersonal
+        ? `Delete "${cal.name}"? This personal calendar and its tasks will be permanently destroyed.`
+        : `Delete "${cal.name}" for everyone? This cannot be undone.`;
+      if (!window.confirm(message)) return;
       db.delete(app.calendars, cal.id);
     } else {
-      // Member removes their membership row
+      // Member removes their membership row — recoverable via invite link, no confirm.
       const row = (allMembers.current ?? []).find(m => m.calendarId === cal.id && m.userId === uid);
       if (row) db.delete(app.calendar_members, row.id);
     }
@@ -147,11 +155,9 @@
             </button>
           {/if}
 
-          {#if !cal.isPersonal}
-            <button class="icon-btn leave" onclick={() => leaveCalendar(cal)} title={cal.creatorId === session?.user_id ? "Delete calendar" : "Leave calendar"} aria-label="Leave calendar">
-              <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 2l8 8M10 2L2 10" stroke="currentColor" stroke-width="1.25" stroke-linecap="round"/></svg>
-            </button>
-          {/if}
+          <button class="icon-btn leave" onclick={() => leaveCalendar(cal)} title={cal.creatorId === session?.user_id ? "Delete calendar" : "Leave calendar"} aria-label={cal.creatorId === session?.user_id ? "Delete calendar" : "Leave calendar"}>
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 2l8 8M10 2L2 10" stroke="currentColor" stroke-width="1.25" stroke-linecap="round"/></svg>
+          </button>
         </div>
       </div>
     {/each}
