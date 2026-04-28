@@ -3,6 +3,7 @@
   import { app } from "$lib/schema";
   import { isVisible, personalCal } from "$lib/calendars.svelte";
   import { eventsForDay, type Event } from "$lib/events";
+  import EventModal from "$lib/EventModal.svelte";
 
   type Calendar = { id: string; name: string; colour: string; creatorId: string; isPersonal: boolean };
   type Member   = { id: string; calendarId: string; userId: string };
@@ -116,6 +117,27 @@
   let dragOverZone = $state<string | undefined>(undefined);
   let dragOverRow  = $state<{ date: string | null; index: number } | null>(null);
   let calPicker    = $state<{ todoId: string; x: number; y: number } | null>(null);
+  let eventModal   = $state<{ date: string } | null>(null);
+
+  function openCreateEvent(date: string) {
+    eventModal = { date };
+  }
+
+  function closeEventModal() {
+    eventModal = null;
+  }
+
+  function saveEvent(values: { title: string; date: string; time: string; calendarId: string }) {
+    if (!session?.user_id) return;
+    db.insert(app.events, {
+      title: values.title,
+      date: values.date,
+      time: values.time || undefined,
+      calendarId: values.calendarId,
+      creatorId: session.user_id,
+    });
+    eventModal = null;
+  }
 
   function startAdding(date: string | null, index: number) {
     editingSlot = { date, index };
@@ -423,8 +445,21 @@
         ondrop={(e) => handleColumnDrop(e, col.date)}
       >
         <div class="col-head">
-          <span class="col-day">{col.label}</span>
-          <span class="col-date">{col.sublabel}</span>
+          <div class="col-head-titles">
+            <span class="col-day">{col.label}</span>
+            <span class="col-date">{col.sublabel}</span>
+          </div>
+          <button
+            type="button"
+            class="add-event-btn"
+            onclick={() => openCreateEvent(col.date)}
+            aria-label="Add event"
+            title="Add event"
+          >
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+              <path d="M6 2v8M2 6h8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+            </svg>
+          </button>
         </div>
         {@render eventsBlock(col.date)}
         {@render taskList(col.date, getSlotsForDate(col.date))}
@@ -448,6 +483,15 @@
     </div>
   </section>
 </div>
+
+<EventModal
+  open={eventModal !== null}
+  calendars={myCalendars}
+  defaultCalendarId={personalCal.id}
+  initialDate={eventModal?.date ?? todayStr}
+  onsave={saveEvent}
+  onclose={closeEventModal}
+/>
 
 <style>
   .wrap {
@@ -560,6 +604,40 @@
     padding: 0.875rem 1rem 0.75rem;
     border-bottom: 1px solid #e8e8e8;
     flex-shrink: 0;
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.5rem;
+  }
+
+  .col-head-titles {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+
+  .add-event-btn {
+    background: none;
+    border: none;
+    padding: 0;
+    width: 22px;
+    height: 22px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #ccc;
+    cursor: pointer;
+    transition: color 0.1s, opacity 0.1s;
+    opacity: 0;
+    flex-shrink: 0;
+  }
+
+  .col:hover .add-event-btn { opacity: 1; }
+  .add-event-btn:hover { color: #000; }
+  .add-event-btn:focus { opacity: 1; outline: none; color: #000; }
+
+  @media (max-width: 880px) {
+    .add-event-btn { opacity: 1; }
   }
 
   .col-day {
