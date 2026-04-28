@@ -178,7 +178,7 @@
     eventModal = null;
   }
 
-  function saveEvent(values: { title: string; date: string; time: string; calendarId: string }) {
+  function saveEvent(values: { title: string; date: string; time: string; calendarId: string; rule?: Rule }) {
     if (!session?.user_id) return;
     if (eventModal?.eventId) {
       db.update(app.events, eventModal.eventId, {
@@ -186,6 +186,22 @@
         date: values.date,
         time: values.time || undefined,
         calendarId: values.calendarId,
+      });
+    } else if (values.rule) {
+      db.insert(app.event_series, {
+        title: values.title,
+        calendarId: values.calendarId,
+        creatorId: session.user_id,
+        time: values.time || undefined,
+        startDate: values.rule.startDate,
+        freq: values.rule.freq,
+        interval: values.rule.interval,
+        byDay: values.rule.byDay && values.rule.byDay.length > 0 ? values.rule.byDay.join(",") : undefined,
+        byMonthDay: values.rule.byMonthDay,
+        bySetPos: values.rule.bySetPos,
+        endCondition: values.rule.endCondition,
+        endDate: values.rule.endDate,
+        count: values.rule.count,
       });
     } else {
       db.insert(app.events, {

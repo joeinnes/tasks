@@ -1,6 +1,15 @@
 <script lang="ts">
+  import RecurrenceForm from "$lib/RecurrenceForm.svelte";
+  import type { Rule } from "$lib/recurrence";
+
   type Calendar = { id: string; name: string; colour: string };
-  type EventValues = { title: string; date: string; time: string; calendarId: string };
+  type EventValues = {
+    title: string;
+    date: string;
+    time: string;
+    calendarId: string;
+    rule?: Rule;
+  };
 
   type Props = {
     open: boolean;
@@ -10,6 +19,7 @@
     initialTitle?: string;
     initialTime?: string | null;
     initialCalendarId?: string;
+    initialRule?: Rule | null;
     mode?: "create" | "edit";
     onsave: (values: EventValues) => void;
     ondelete?: () => void;
@@ -24,6 +34,7 @@
     initialTitle = "",
     initialTime = null,
     initialCalendarId,
+    initialRule = null,
     mode = "create",
     onsave,
     ondelete,
@@ -34,6 +45,17 @@
   let date = $state("");
   let time = $state("");
   let calendarId = $state("");
+  let isRecurring = $state(false);
+  let rule = $state<Rule>(defaultRule(""));
+
+  function defaultRule(start: string): Rule {
+    return {
+      startDate: start,
+      freq: "WEEKLY",
+      interval: 1,
+      endCondition: "never",
+    };
+  }
 
   $effect(() => {
     if (open) {
@@ -41,6 +63,15 @@
       date = initialDate;
       time = initialTime ?? "";
       calendarId = initialCalendarId ?? defaultCalendarId ?? calendars[0]?.id ?? "";
+      isRecurring = !!initialRule;
+      rule = initialRule ?? defaultRule(initialDate);
+    }
+  });
+
+  $effect(() => {
+    // Keep rule.startDate in sync with the form date when toggle is on but rule was just enabled.
+    if (isRecurring && rule.startDate !== date) {
+      rule = { ...rule, startDate: date };
     }
   });
 
@@ -48,7 +79,13 @@
     e.preventDefault();
     const trimmed = title.trim();
     if (!trimmed || !date || !calendarId) return;
-    onsave({ title: trimmed, date, time: time.trim(), calendarId });
+    onsave({
+      title: trimmed,
+      date,
+      time: time.trim(),
+      calendarId,
+      rule: isRecurring ? rule : undefined,
+    });
   }
 
   function handleBackdropClick(e: MouseEvent) {
@@ -98,6 +135,15 @@
             {/each}
           </select>
         </label>
+
+        <label class="recurring-toggle">
+          <input type="checkbox" bind:checked={isRecurring} />
+          <span class="label">Recurring</span>
+        </label>
+
+        {#if isRecurring}
+          <RecurrenceForm value={rule} onchange={(v) => (rule = v)} />
+        {/if}
 
         <div class="actions">
           {#if mode === "edit" && ondelete}
@@ -181,6 +227,17 @@
   input[type="time"]:focus,
   select:focus {
     border-bottom-color: var(--accent, #000);
+  }
+
+  .recurring-toggle {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    cursor: pointer;
+  }
+
+  .recurring-toggle input[type="checkbox"] {
+    margin: 0;
   }
 
   .actions {
