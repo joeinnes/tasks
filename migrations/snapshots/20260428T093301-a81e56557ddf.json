@@ -1,0 +1,341 @@
+{
+  "calendars": {
+    "columns": [
+      {
+        "name": "name",
+        "column_type": {
+          "type": "Text"
+        },
+        "nullable": false
+      },
+      {
+        "name": "colour",
+        "column_type": {
+          "type": "Text"
+        },
+        "nullable": false
+      },
+      {
+        "name": "creatorId",
+        "column_type": {
+          "type": "Text"
+        },
+        "nullable": false
+      },
+      {
+        "name": "isPersonal",
+        "column_type": {
+          "type": "Boolean"
+        },
+        "nullable": false
+      }
+    ]
+  },
+  "calendar_members": {
+    "columns": [
+      {
+        "name": "calendarId",
+        "column_type": {
+          "type": "Text"
+        },
+        "nullable": false
+      },
+      {
+        "name": "userId",
+        "column_type": {
+          "type": "Text"
+        },
+        "nullable": false
+      }
+    ]
+  },
+  "todos": {
+    "columns": [
+      {
+        "name": "title",
+        "column_type": {
+          "type": "Text"
+        },
+        "nullable": false
+      },
+      {
+        "name": "done",
+        "column_type": {
+          "type": "Boolean"
+        },
+        "nullable": false
+      },
+      {
+        "name": "date",
+        "column_type": {
+          "type": "Text"
+        },
+        "nullable": false
+      },
+      {
+        "name": "calendarId",
+        "column_type": {
+          "type": "Text"
+        },
+        "nullable": true
+      },
+      {
+        "name": "creatorId",
+        "column_type": {
+          "type": "Text"
+        },
+        "nullable": true
+      },
+      {
+        "name": "position",
+        "column_type": {
+          "type": "Integer"
+        },
+        "nullable": true
+      },
+      {
+        "name": "seriesId",
+        "column_type": {
+          "type": "Text"
+        },
+        "nullable": true
+      }
+    ]
+  },
+  "events": {
+    "columns": [
+      {
+        "name": "title",
+        "column_type": {
+          "type": "Text"
+        },
+        "nullable": false
+      },
+      {
+        "name": "date",
+        "column_type": {
+          "type": "Text"
+        },
+        "nullable": false
+      },
+      {
+        "name": "time",
+        "column_type": {
+          "type": "Text"
+        },
+        "nullable": true
+      },
+      {
+        "name": "calendarId",
+        "column_type": {
+          "type": "Text"
+        },
+        "nullable": false
+      },
+      {
+        "name": "creatorId",
+        "column_type": {
+          "type": "Text"
+        },
+        "nullable": false
+      },
+      {
+        "name": "seriesId",
+        "column_type": {
+          "type": "Text"
+        },
+        "nullable": true
+      }
+    ]
+  },
+  "task_series": {
+    "columns": [
+      {
+        "name": "title",
+        "column_type": {
+          "type": "Text"
+        },
+        "nullable": false
+      },
+      {
+        "name": "calendarId",
+        "column_type": {
+          "type": "Text"
+        },
+        "nullable": false
+      },
+      {
+        "name": "creatorId",
+        "column_type": {
+          "type": "Text"
+        },
+        "nullable": false
+      },
+      {
+        "name": "startDate",
+        "column_type": {
+          "type": "Text"
+        },
+        "nullable": false
+      },
+      {
+        "name": "freq",
+        "column_type": {
+          "type": "Text"
+        },
+        "nullable": false
+      },
+      {
+        "name": "interval",
+        "column_type": {
+          "type": "Integer"
+        },
+        "nullable": false
+      },
+      {
+        "name": "byDay",
+        "column_type": {
+          "type": "Text"
+        },
+        "nullable": true
+      },
+      {
+        "name": "byMonthDay",
+        "column_type": {
+          "type": "Integer"
+        },
+        "nullable": true
+      },
+      {
+        "name": "bySetPos",
+        "column_type": {
+          "type": "Integer"
+        },
+        "nullable": true
+      },
+      {
+        "name": "endCondition",
+        "column_type": {
+          "type": "Text"
+        },
+        "nullable": false
+      },
+      {
+        "name": "endDate",
+        "column_type": {
+          "type": "Text"
+        },
+        "nullable": true
+      },
+      {
+        "name": "count",
+        "column_type": {
+          "type": "Integer"
+        },
+        "nullable": true
+      },
+      {
+        "name": "mode",
+        "column_type": {
+          "type": "Text"
+        },
+        "nullable": false
+      }
+    ]
+  },
+  "event_series": {
+    "columns": [
+      {
+        "name": "title",
+        "column_type": {
+          "type": "Text"
+        },
+        "nullable": false
+      },
+      {
+        "name": "calendarId",
+        "column_type": {
+          "type": "Text"
+        },
+        "nullable": false
+      },
+      {
+        "name": "creatorId",
+        "column_type": {
+          "type": "Text"
+        },
+        "nullable": false
+      },
+      {
+        "name": "time",
+        "column_type": {
+          "type": "Text"
+        },
+        "nullable": true
+      },
+      {
+        "name": "startDate",
+        "column_type": {
+          "type": "Text"
+        },
+        "nullable": false
+      },
+      {
+        "name": "freq",
+        "column_type": {
+          "type": "Text"
+        },
+        "nullable": false
+      },
+      {
+        "name": "interval",
+        "column_type": {
+          "type": "Integer"
+        },
+        "nullable": false
+      },
+      {
+        "name": "byDay",
+        "column_type": {
+          "type": "Text"
+        },
+        "nullable": true
+      },
+      {
+        "name": "byMonthDay",
+        "column_type": {
+          "type": "Integer"
+        },
+        "nullable": true
+      },
+      {
+        "name": "bySetPos",
+        "column_type": {
+          "type": "Integer"
+        },
+        "nullable": true
+      },
+      {
+        "name": "endCondition",
+        "column_type": {
+          "type": "Text"
+        },
+        "nullable": false
+      },
+      {
+        "name": "endDate",
+        "column_type": {
+          "type": "Text"
+        },
+        "nullable": true
+      },
+      {
+        "name": "count",
+        "column_type": {
+          "type": "Integer"
+        },
+        "nullable": true
+      }
+    ]
+  }
+}
