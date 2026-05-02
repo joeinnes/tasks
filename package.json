@@ -15,7 +15,8 @@
     "@sveltejs/adapter-vercel": "^6.3.3",
     "@upstash/qstash": "^2.10.1",
     "@upstash/redis": "^1.37.0",
-    "jazz-tools": "^2.0.0-alpha.39",
+    "jazz-tools": "2.0.0-alpha.45",
+    "jazz-wasm": "2.0.0-alpha.45",
     "svelte": "^5.0.0",
     "web-push": "^3.6.7",
     "workbox-precaching": "^7.4.0"

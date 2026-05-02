@@ -12,7 +12,7 @@
 
   type Calendar = { id: string; name: string; colour: string; creatorId: string; isPersonal: boolean };
   type Member   = { id: string; calendarId: string; userId: string };
-  type Todo     = { id: string; title: string; done: boolean; date: string; calendarId?: string; creatorId?: string; position?: number; seriesId?: string | null };
+  type Todo     = { id: string; title: string; done: boolean; date: string; calendarId?: string | null; creatorId?: string | null; position?: number | null; seriesId?: string | null };
   type EventSeriesRow = {
     id: string;
     title: string;
