@@ -1,33 +1,37 @@
 import { schema as s } from "jazz-tools";
 import { app } from "./schema";
 
-export default s.definePermissions(app, ({ policy, session, anyOf, isCreator }) => {
+export default s.definePermissions(app, ({ policy, session, anyOf }) => {
   // Calendars: creator manages; any member can read
   policy.calendars.allowRead.where((row) =>
     anyOf([
-      isCreator,
+      { creatorId: session.user_id },
       policy.calendar_members.exists.where({
         calendarId: row.id,
         userId: session.user_id,
       }),
     ])
   );
-  policy.calendars.allowInsert.always();
-  policy.calendars.allowUpdate.where(isCreator);
-  policy.calendars.allowDelete.where(isCreator);
+  policy.calendars.allowInsert.where({ creatorId: session.user_id });
+  policy.calendars.allowUpdate.where({ creatorId: session.user_id });
+  policy.calendars.allowDelete.where({ creatorId: session.user_id });
 
-  // Members: open insert (joining via link), each user owns their own row
-  policy.calendar_members.allowRead.where({ userId: session.user_id });
-  policy.calendar_members.allowInsert.always();
+  // Members: open read so exists() lookups can resolve in other policies.
+  // Insert is open (joining via invite link); each user owns their own row.
+  policy.calendar_members.allowRead.always();
+  policy.calendar_members.allowInsert.where({ userId: session.user_id });
   policy.calendar_members.allowUpdate.never();
   policy.calendar_members.allowDelete.where({ userId: session.user_id });
 
-  // Todos: only accessible to members of the todo's calendar
+  // Todos: creator-managed, with members of the calendar as a fallback path
   policy.todos.allowRead.where((row) =>
-    policy.calendar_members.exists.where({
-      calendarId: row.calendarId,
-      userId: session.user_id,
-    })
+    anyOf([
+      { creatorId: session.user_id },
+      policy.calendar_members.exists.where({
+        calendarId: row.calendarId,
+        userId: session.user_id,
+      }),
+    ])
   );
   policy.todos.allowInsert.where((row) =>
     policy.calendar_members.exists.where({
@@ -36,24 +40,33 @@ export default s.definePermissions(app, ({ policy, session, anyOf, isCreator }) 
     })
   );
   policy.todos.allowUpdate.where((row) =>
-    policy.calendar_members.exists.where({
-      calendarId: row.calendarId,
-      userId: session.user_id,
-    })
+    anyOf([
+      { creatorId: session.user_id },
+      policy.calendar_members.exists.where({
+        calendarId: row.calendarId,
+        userId: session.user_id,
+      }),
+    ])
   );
   policy.todos.allowDelete.where((row) =>
-    policy.calendar_members.exists.where({
-      calendarId: row.calendarId,
-      userId: session.user_id,
-    })
+    anyOf([
+      { creatorId: session.user_id },
+      policy.calendar_members.exists.where({
+        calendarId: row.calendarId,
+        userId: session.user_id,
+      }),
+    ])
   );
 
-  // Events: same model as todos — members of the event's calendar only
+  // Events: same shape as todos
   policy.events.allowRead.where((row) =>
-    policy.calendar_members.exists.where({
-      calendarId: row.calendarId,
-      userId: session.user_id,
-    })
+    anyOf([
+      { creatorId: session.user_id },
+      policy.calendar_members.exists.where({
+        calendarId: row.calendarId,
+        userId: session.user_id,
+      }),
+    ])
   );
   policy.events.allowInsert.where((row) =>
     policy.calendar_members.exists.where({
@@ -62,24 +75,33 @@ export default s.definePermissions(app, ({ policy, session, anyOf, isCreator }) 
     })
   );
   policy.events.allowUpdate.where((row) =>
-    policy.calendar_members.exists.where({
-      calendarId: row.calendarId,
-      userId: session.user_id,
-    })
+    anyOf([
+      { creatorId: session.user_id },
+      policy.calendar_members.exists.where({
+        calendarId: row.calendarId,
+        userId: session.user_id,
+      }),
+    ])
   );
   policy.events.allowDelete.where((row) =>
-    policy.calendar_members.exists.where({
-      calendarId: row.calendarId,
-      userId: session.user_id,
-    })
+    anyOf([
+      { creatorId: session.user_id },
+      policy.calendar_members.exists.where({
+        calendarId: row.calendarId,
+        userId: session.user_id,
+      }),
+    ])
   );
 
-  // Task series: same model — members of the series' calendar only
+  // Task series
   policy.task_series.allowRead.where((row) =>
-    policy.calendar_members.exists.where({
-      calendarId: row.calendarId,
-      userId: session.user_id,
-    })
+    anyOf([
+      { creatorId: session.user_id },
+      policy.calendar_members.exists.where({
+        calendarId: row.calendarId,
+        userId: session.user_id,
+      }),
+    ])
   );
   policy.task_series.allowInsert.where((row) =>
     policy.calendar_members.exists.where({
@@ -88,24 +110,33 @@ export default s.definePermissions(app, ({ policy, session, anyOf, isCreator }) 
     })
   );
   policy.task_series.allowUpdate.where((row) =>
-    policy.calendar_members.exists.where({
-      calendarId: row.calendarId,
-      userId: session.user_id,
-    })
+    anyOf([
+      { creatorId: session.user_id },
+      policy.calendar_members.exists.where({
+        calendarId: row.calendarId,
+        userId: session.user_id,
+      }),
+    ])
   );
   policy.task_series.allowDelete.where((row) =>
-    policy.calendar_members.exists.where({
-      calendarId: row.calendarId,
-      userId: session.user_id,
-    })
+    anyOf([
+      { creatorId: session.user_id },
+      policy.calendar_members.exists.where({
+        calendarId: row.calendarId,
+        userId: session.user_id,
+      }),
+    ])
   );
 
-  // Event series: same model — members of the series' calendar only
+  // Event series
   policy.event_series.allowRead.where((row) =>
-    policy.calendar_members.exists.where({
-      calendarId: row.calendarId,
-      userId: session.user_id,
-    })
+    anyOf([
+      { creatorId: session.user_id },
+      policy.calendar_members.exists.where({
+        calendarId: row.calendarId,
+        userId: session.user_id,
+      }),
+    ])
   );
   policy.event_series.allowInsert.where((row) =>
     policy.calendar_members.exists.where({
@@ -114,15 +145,21 @@ export default s.definePermissions(app, ({ policy, session, anyOf, isCreator }) 
     })
   );
   policy.event_series.allowUpdate.where((row) =>
-    policy.calendar_members.exists.where({
-      calendarId: row.calendarId,
-      userId: session.user_id,
-    })
+    anyOf([
+      { creatorId: session.user_id },
+      policy.calendar_members.exists.where({
+        calendarId: row.calendarId,
+        userId: session.user_id,
+      }),
+    ])
   );
   policy.event_series.allowDelete.where((row) =>
-    policy.calendar_members.exists.where({
-      calendarId: row.calendarId,
-      userId: session.user_id,
-    })
+    anyOf([
+      { creatorId: session.user_id },
+      policy.calendar_members.exists.where({
+        calendarId: row.calendarId,
+        userId: session.user_id,
+      }),
+    ])
   );
 });
