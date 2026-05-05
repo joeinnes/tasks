@@ -59,15 +59,26 @@
   let healChecked = $state(false);
   $effect(() => {
     if (healChecked) return;
-    if (!session?.user_id || allCals.loading || allMembers.loading) return;
+    if (!session?.user_id || !allCals.current || !allMembers.current) return;
     healChecked = true;
     const uid = session.user_id;
     const myMemberCalIds = new Set(
-      (allMembers.current ?? []).filter(m => m.userId === uid).map(m => m.calendarId)
+      allMembers.current.filter(m => m.userId === uid).map(m => m.calendarId)
     );
-    for (const cal of allCals.current ?? []) {
-      if (cal.$createdBy === uid && !myMemberCalIds.has(cal.id)) {
-        db.insert(app.calendar_members, { calendarId: cal.id, userId: uid });
+    const created = allCals.current.filter(c => c.$createdBy === uid);
+    const missing = created.filter(c => !myMemberCalIds.has(c.id));
+    console.log("[heal] session.user_id:", uid);
+    console.log("[heal] allCals.current.length:", allCals.current.length);
+    console.log("[heal] allMembers.current.length:", allMembers.current.length);
+    console.log("[heal] my member calendarIds:", [...myMemberCalIds]);
+    console.log("[heal] calendars I created:", created.map(c => ({ id: c.id, name: c.name, $createdBy: c.$createdBy })));
+    console.log("[heal] missing member rows for:", missing.map(c => c.id));
+    for (const cal of missing) {
+      try {
+        const res = db.insert(app.calendar_members, { calendarId: cal.id, userId: uid });
+        console.log("[heal] inserted member row for", cal.id, "->", res?.value?.id ?? res);
+      } catch (err) {
+        console.error("[heal] insert FAILED for", cal.id, err);
       }
     }
   });

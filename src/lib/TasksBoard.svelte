@@ -582,6 +582,13 @@
     if (!title || !session?.user_id) return;
     const calendarId = personalCal.id ?? myCalendars[0]?.id;
     if (!calendarId) return;
+    const uid = session.user_id;
+    const cal = (allCals.current ?? []).find(c => c.id === calendarId);
+    const memberRow = (allMembers.current ?? []).find(m => m.calendarId === calendarId && m.userId === uid);
+    console.log("[submitNewTask] calendarId:", calendarId);
+    console.log("[submitNewTask] personalCal.id (shared):", personalCal.id);
+    console.log("[submitNewTask] target calendar in allCals:", cal ? { id: cal.id, name: cal.name, $createdBy: cal.$createdBy, isPersonal: cal.isPersonal } : "NOT FOUND");
+    console.log("[submitNewTask] my member row for that calendar:", memberRow ? memberRow.id : "MISSING");
     db.insert(app.todos, {
       title,
       done: false,
