@@ -39,10 +39,16 @@ export default s.definePermissions(app, ({ policy, session, anyOf, isCreator }) 
     ])
   );
   policy.todos.allowInsert.where((row) =>
-    policy.calendar_members.exists.where({
-      calendarId: row.calendarId,
-      userId: session.user_id,
-    })
+    anyOf([
+      policy.calendar_members.exists.where({
+        calendarId: row.calendarId,
+        userId: session.user_id,
+      }),
+      policy.calendars.exists.where({
+        id: row.calendarId,
+        creatorId: session.user_id,
+      }),
+    ])
   );
   policy.todos.allowUpdate.where((row) =>
     anyOf([
@@ -77,10 +83,16 @@ export default s.definePermissions(app, ({ policy, session, anyOf, isCreator }) 
     ])
   );
   policy.events.allowInsert.where((row) =>
-    policy.calendar_members.exists.where({
-      calendarId: row.calendarId,
-      userId: session.user_id,
-    })
+    anyOf([
+      policy.calendar_members.exists.where({
+        calendarId: row.calendarId,
+        userId: session.user_id,
+      }),
+      policy.calendars.exists.where({
+        id: row.calendarId,
+        creatorId: session.user_id,
+      }),
+    ])
   );
   policy.events.allowUpdate.where((row) =>
     anyOf([
@@ -115,10 +127,16 @@ export default s.definePermissions(app, ({ policy, session, anyOf, isCreator }) 
     ])
   );
   policy.task_series.allowInsert.where((row) =>
-    policy.calendar_members.exists.where({
-      calendarId: row.calendarId,
-      userId: session.user_id,
-    })
+    anyOf([
+      policy.calendar_members.exists.where({
+        calendarId: row.calendarId,
+        userId: session.user_id,
+      }),
+      policy.calendars.exists.where({
+        id: row.calendarId,
+        creatorId: session.user_id,
+      }),
+    ])
   );
   policy.task_series.allowUpdate.where((row) =>
     anyOf([
@@ -153,10 +171,16 @@ export default s.definePermissions(app, ({ policy, session, anyOf, isCreator }) 
     ])
   );
   policy.event_series.allowInsert.where((row) =>
-    policy.calendar_members.exists.where({
-      calendarId: row.calendarId,
-      userId: session.user_id,
-    })
+    anyOf([
+      policy.calendar_members.exists.where({
+        calendarId: row.calendarId,
+        userId: session.user_id,
+      }),
+      policy.calendars.exists.where({
+        id: row.calendarId,
+        creatorId: session.user_id,
+      }),
+    ])
   );
   policy.event_series.allowUpdate.where((row) =>
     anyOf([
