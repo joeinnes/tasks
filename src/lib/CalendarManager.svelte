@@ -52,6 +52,26 @@
     }
   });
 
+  // Self-heal: ensure every calendar the user created has a matching calendar_members row.
+  // Membership is the load-bearing join for insert/update policies on child rows; if it's
+  // missing (e.g. calendar created before the dual-branch policy, or row lost in a prior
+  // migration), child writes silently fail. Reconcile once per session.
+  let healChecked = $state(false);
+  $effect(() => {
+    if (healChecked) return;
+    if (!session?.user_id || allCals.loading || allMembers.loading) return;
+    healChecked = true;
+    const uid = session.user_id;
+    const myMemberCalIds = new Set(
+      (allMembers.current ?? []).filter(m => m.userId === uid).map(m => m.calendarId)
+    );
+    for (const cal of allCals.current ?? []) {
+      if (cal.$createdBy === uid && !myMemberCalIds.has(cal.id)) {
+        db.insert(app.calendar_members, { calendarId: cal.id, userId: uid });
+      }
+    }
+  });
+
   // ── Creating a new calendar ──
   let creating = $state(false);
   let newName  = $state("");
