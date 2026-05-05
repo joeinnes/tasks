@@ -1,10 +1,14 @@
 import { schema as s } from "jazz-tools";
 import { app } from "./schema";
 
-export default s.definePermissions(app, ({ policy, session, anyOf }) => {
-  // Calendars: creator manages; any member can read
+export default s.definePermissions(app, ({ policy, session, anyOf, isCreator }) => {
+  // Calendars: creator manages; any member can read.
+  // isCreator is a protocol-level fallback for rows created before the
+  // creatorId column was added — column-based checks fail with
+  // "missing row content" on those rows.
   policy.calendars.allowRead.where((row) =>
     anyOf([
+      isCreator,
       { creatorId: session.user_id },
       policy.calendar_members.exists.where({
         calendarId: row.id,
@@ -13,8 +17,8 @@ export default s.definePermissions(app, ({ policy, session, anyOf }) => {
     ])
   );
   policy.calendars.allowInsert.where({ creatorId: session.user_id });
-  policy.calendars.allowUpdate.where({ creatorId: session.user_id });
-  policy.calendars.allowDelete.where({ creatorId: session.user_id });
+  policy.calendars.allowUpdate.where(anyOf([isCreator, { creatorId: session.user_id }]));
+  policy.calendars.allowDelete.where(anyOf([isCreator, { creatorId: session.user_id }]));
 
   // Members: open read so exists() lookups can resolve in other policies.
   // Insert is open (joining via invite link); each user owns their own row.
@@ -26,6 +30,7 @@ export default s.definePermissions(app, ({ policy, session, anyOf }) => {
   // Todos: creator-managed, with members of the calendar as a fallback path
   policy.todos.allowRead.where((row) =>
     anyOf([
+      isCreator,
       { creatorId: session.user_id },
       policy.calendar_members.exists.where({
         calendarId: row.calendarId,
@@ -41,6 +46,7 @@ export default s.definePermissions(app, ({ policy, session, anyOf }) => {
   );
   policy.todos.allowUpdate.where((row) =>
     anyOf([
+      isCreator,
       { creatorId: session.user_id },
       policy.calendar_members.exists.where({
         calendarId: row.calendarId,
@@ -50,6 +56,7 @@ export default s.definePermissions(app, ({ policy, session, anyOf }) => {
   );
   policy.todos.allowDelete.where((row) =>
     anyOf([
+      isCreator,
       { creatorId: session.user_id },
       policy.calendar_members.exists.where({
         calendarId: row.calendarId,
@@ -61,6 +68,7 @@ export default s.definePermissions(app, ({ policy, session, anyOf }) => {
   // Events: same shape as todos
   policy.events.allowRead.where((row) =>
     anyOf([
+      isCreator,
       { creatorId: session.user_id },
       policy.calendar_members.exists.where({
         calendarId: row.calendarId,
@@ -76,6 +84,7 @@ export default s.definePermissions(app, ({ policy, session, anyOf }) => {
   );
   policy.events.allowUpdate.where((row) =>
     anyOf([
+      isCreator,
       { creatorId: session.user_id },
       policy.calendar_members.exists.where({
         calendarId: row.calendarId,
@@ -85,6 +94,7 @@ export default s.definePermissions(app, ({ policy, session, anyOf }) => {
   );
   policy.events.allowDelete.where((row) =>
     anyOf([
+      isCreator,
       { creatorId: session.user_id },
       policy.calendar_members.exists.where({
         calendarId: row.calendarId,
@@ -96,6 +106,7 @@ export default s.definePermissions(app, ({ policy, session, anyOf }) => {
   // Task series
   policy.task_series.allowRead.where((row) =>
     anyOf([
+      isCreator,
       { creatorId: session.user_id },
       policy.calendar_members.exists.where({
         calendarId: row.calendarId,
@@ -111,6 +122,7 @@ export default s.definePermissions(app, ({ policy, session, anyOf }) => {
   );
   policy.task_series.allowUpdate.where((row) =>
     anyOf([
+      isCreator,
       { creatorId: session.user_id },
       policy.calendar_members.exists.where({
         calendarId: row.calendarId,
@@ -120,6 +132,7 @@ export default s.definePermissions(app, ({ policy, session, anyOf }) => {
   );
   policy.task_series.allowDelete.where((row) =>
     anyOf([
+      isCreator,
       { creatorId: session.user_id },
       policy.calendar_members.exists.where({
         calendarId: row.calendarId,
@@ -131,6 +144,7 @@ export default s.definePermissions(app, ({ policy, session, anyOf }) => {
   // Event series
   policy.event_series.allowRead.where((row) =>
     anyOf([
+      isCreator,
       { creatorId: session.user_id },
       policy.calendar_members.exists.where({
         calendarId: row.calendarId,
@@ -146,6 +160,7 @@ export default s.definePermissions(app, ({ policy, session, anyOf }) => {
   );
   policy.event_series.allowUpdate.where((row) =>
     anyOf([
+      isCreator,
       { creatorId: session.user_id },
       policy.calendar_members.exists.where({
         calendarId: row.calendarId,
@@ -155,6 +170,7 @@ export default s.definePermissions(app, ({ policy, session, anyOf }) => {
   );
   policy.event_series.allowDelete.where((row) =>
     anyOf([
+      isCreator,
       { creatorId: session.user_id },
       policy.calendar_members.exists.where({
         calendarId: row.calendarId,
