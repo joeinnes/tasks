@@ -49,17 +49,21 @@
     return `${String(d.getUTCHours()).padStart(2, "0")}:${String(d.getUTCMinutes()).padStart(2, "0")}`;
   }
 
-  function urlB64ToUint8Array(b64: string): Uint8Array {
+  function urlB64ToUint8Array(b64: string): Uint8Array<ArrayBuffer> {
     const pad = "=".repeat((4 - (b64.length % 4)) % 4);
     const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
-    return Uint8Array.from([...raw].map(c => c.charCodeAt(0)));
+    const arr = new Uint8Array(new ArrayBuffer(raw.length));
+    for (let i = 0; i < raw.length; i++) arr[i] = raw.charCodeAt(i);
+    return arr;
   }
 
   async function subscribePush(localTime: string): Promise<void> {
+    const vapidKey = env.PUBLIC_VAPID_KEY;
+    if (!vapidKey) throw new Error("Missing PUBLIC_VAPID_KEY");
     const reg = await navigator.serviceWorker.ready;
     const sub = await reg.pushManager.subscribe({
       userVisibleOnly: true,
-      applicationServerKey: urlB64ToUint8Array(env.PUBLIC_VAPID_KEY),
+      applicationServerKey: urlB64ToUint8Array(vapidKey),
     });
     await fetch("/api/push/subscribe", {
       method: "POST",
