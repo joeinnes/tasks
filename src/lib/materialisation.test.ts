@@ -21,7 +21,7 @@ const eventSeries = (id: string, rule: Rule, overrides: Partial<EventSeriesData>
   id,
   title: `Series ${id}`,
   calendarId: "cal-1",
-  creatorId: "user-1",
+  $createdBy: "user-1",
   rule,
   ...overrides,
 });
@@ -30,7 +30,7 @@ const taskSeries = (id: string, rule: Rule, overrides: Partial<TaskSeriesData> =
   id,
   title: `Task ${id}`,
   calendarId: "cal-1",
-  creatorId: "user-1",
+  $createdBy: "user-1",
   rule,
   mode: "schedule",
   ...overrides,

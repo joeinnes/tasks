@@ -4,7 +4,7 @@ export type Event = {
   date: string;
   time?: string | null;
   calendarId: string;
-  creatorId: string;
+  $createdBy?: string | null;
   seriesId?: string | null;
   tombstone?: boolean | null;
 };

@@ -10,14 +10,14 @@
   import ThreeWayPrompt from "$lib/ThreeWayPrompt.svelte";
   import { addDays as addDaysToISO } from "$lib/recurrence";
 
-  type Calendar = { id: string; name: string; colour: string; creatorId: string; isPersonal: boolean };
+  type Calendar = { id: string; name: string; colour: string; $createdBy?: string | null; isPersonal: boolean };
   type Member   = { id: string; calendarId: string; userId: string };
-  type Todo     = { id: string; title: string; done: boolean; date: string; calendarId?: string | null; creatorId?: string | null; position?: number | null; seriesId?: string | null };
+  type Todo     = { id: string; title: string; done: boolean; date: string; calendarId?: string | null; $createdBy?: string | null; position?: number | null; seriesId?: string | null };
   type EventSeriesRow = {
     id: string;
     title: string;
     calendarId: string;
-    creatorId: string;
+    $createdBy?: string | null;
     time?: string | null;
     startDate: string;
     freq: string;
@@ -33,7 +33,7 @@
     id: string;
     title: string;
     calendarId: string;
-    creatorId: string;
+    $createdBy?: string | null;
     startDate: string;
     freq: string;
     interval: number;
@@ -49,11 +49,11 @@
 
   const db      = getDb();
   const session = getSession();
-  const todos   = new QuerySubscription<Todo>(app.todos);
-  const events  = new QuerySubscription<Event>(app.events);
-  const eventSeriesQuery = new QuerySubscription<EventSeriesRow>(app.event_series);
-  const taskSeriesQuery = new QuerySubscription<TaskSeriesRow>(app.task_series);
-  const allCals = new QuerySubscription<Calendar>(app.calendars);
+  const todos   = new QuerySubscription<Todo>(app.todos.select("*", "$createdBy"));
+  const events  = new QuerySubscription<Event>(app.events.select("*", "$createdBy"));
+  const eventSeriesQuery = new QuerySubscription<EventSeriesRow>(app.event_series.select("*", "$createdBy"));
+  const taskSeriesQuery = new QuerySubscription<TaskSeriesRow>(app.task_series.select("*", "$createdBy"));
+  const allCals = new QuerySubscription<Calendar>(app.calendars.select("*", "$createdBy"));
   const allMembers = new QuerySubscription<Member>(app.calendar_members);
 
   function taskSeriesToData(row: TaskSeriesRow): TaskSeriesData {
@@ -61,7 +61,7 @@
       id: row.id,
       title: row.title,
       calendarId: row.calendarId,
-      creatorId: row.creatorId,
+      $createdBy: row.$createdBy,
       mode: row.mode as Mode,
       rule: {
         startDate: row.startDate,
@@ -83,7 +83,7 @@
       title: row.title,
       time: row.time ?? null,
       calendarId: row.calendarId,
-      creatorId: row.creatorId,
+      $createdBy: row.$createdBy,
       rule: {
         startDate: row.startDate,
         freq: row.freq as Freq,
@@ -136,7 +136,6 @@
         done: true,
         date: todo.date,
         calendarId: todo.calendarId,
-        creatorId: todo.creatorId ?? session.user_id,
         position: Math.floor(Date.now() / 1000),
         seriesId: todo.seriesId,
       });
@@ -279,7 +278,6 @@
       db.insert(app.task_series, {
         title: values.title,
         calendarId: values.calendarId,
-        creatorId: session.user_id,
         ...ruleToSeriesFields(values.rule),
         mode: values.seriesMode,
       });
@@ -289,7 +287,6 @@
         done: false,
         date: values.date,
         calendarId: values.calendarId,
-        creatorId: session.user_id,
         position: Math.floor(Date.now() / 1000),
       });
     }
@@ -422,7 +419,6 @@
       db.insert(app.event_series, {
         title: values.title,
         calendarId: values.calendarId,
-        creatorId: session.user_id,
         time: values.time || undefined,
         ...ruleToSeriesFields(values.rule),
       });
@@ -432,7 +428,6 @@
         date: values.date,
         time: values.time || undefined,
         calendarId: values.calendarId,
-        creatorId: session.user_id,
       });
     }
     eventModal = null;
@@ -469,7 +464,6 @@
           date: change.cutoffDate,
           time: v.time || undefined,
           calendarId: v.calendarId,
-          creatorId: uid,
         });
       } else if (choice === "this-and-future") {
         db.update(app.event_series, change.seriesId, {
@@ -479,7 +473,6 @@
         db.insert(app.event_series, {
           title: v.title,
           calendarId: v.calendarId,
-          creatorId: uid,
           time: v.time || undefined,
           ...ruleToSeriesFields({ ...v.rule, startDate: change.cutoffDate }),
         });
@@ -504,7 +497,6 @@
           title: series.title,
           date: change.cutoffDate,
           calendarId: series.calendarId,
-          creatorId: uid,
           seriesId: change.seriesId,
           tombstone: true,
         });
@@ -528,7 +520,6 @@
           done: false,
           date: change.cutoffDate,
           calendarId: v.calendarId,
-          creatorId: uid,
           position: Math.floor(Date.now() / 1000),
         });
       } else if (choice === "this-and-future") {
@@ -539,7 +530,6 @@
         db.insert(app.task_series, {
           title: v.title,
           calendarId: v.calendarId,
-          creatorId: uid,
           ...ruleToSeriesFields({ ...v.rule, startDate: change.cutoffDate }),
           mode: v.seriesMode,
         });
@@ -564,7 +554,6 @@
           done: true,
           date: change.cutoffDate,
           calendarId: series.calendarId,
-          creatorId: uid,
           position: Math.floor(Date.now() / 1000),
           seriesId: series.id,
         });
@@ -598,7 +587,6 @@
       done: false,
       date: date ?? "",
       calendarId,
-      creatorId: session.user_id,
       position: Math.floor(Date.now() / 1000),
     });
   }
@@ -616,7 +604,7 @@
   }
 
   function openCalPicker(e: MouseEvent, todo: Todo) {
-    if (todo.creatorId !== session?.user_id) return;
+    if (todo.$createdBy !== session?.user_id) return;
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
     calPicker = { todoId: todo.id, x: rect.left, y: rect.bottom + 4 };
   }
@@ -663,7 +651,6 @@
       done: false,
       date,
       calendarId: series.calendarId,
-      creatorId: series.creatorId,
       position: Math.floor(Date.now() / 1000),
       seriesId: series.id,
     });
@@ -780,7 +767,6 @@
         date: v.date,
         done: false,
         calendarId: v.calendarId,
-        creatorId: v.creatorId,
         position: undefined,
         isVirtual: true,
         seriesId: v.seriesId,
@@ -914,7 +900,7 @@
           {#if showCalDots}
             <button
               class="cal-bar"
-              class:clickable={!todo.isVirtual && todo.creatorId === session?.user_id}
+              class:clickable={!todo.isVirtual && todo.$createdBy === session?.user_id}
               style="background: {calendarMap.get(todo.calendarId ?? '')?.colour ?? '#888'}"
               title={calendarMap.get(todo.calendarId ?? '')?.name}
               onclick={!todo.isVirtual ? (e) => openCalPicker(e, todo as Todo) : undefined}

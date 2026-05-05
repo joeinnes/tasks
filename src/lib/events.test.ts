@@ -12,7 +12,7 @@ function ev(partial: Partial<Event> & { id: string; date: string; title: string 
     date: partial.date,
     time: partial.time,
     calendarId: partial.calendarId ?? personalCalId,
-    creatorId: partial.creatorId ?? "user-1",
+    $createdBy: partial.$createdBy ?? "user-1",
   };
 }
 

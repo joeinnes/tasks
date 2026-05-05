@@ -9,7 +9,7 @@ export type TaskSeriesData = {
   id: string;
   title: string;
   calendarId: string;
-  creatorId: string;
+  $createdBy?: string | null;
   rule: Rule;
   mode: Mode;
 };
@@ -19,7 +19,7 @@ export type EventSeriesData = {
   title: string;
   time?: string | null;
   calendarId: string;
-  creatorId: string;
+  $createdBy?: string | null;
   rule: Rule;
 };
 
@@ -43,7 +43,7 @@ export type VirtualTask = {
   title: string;
   date: string;
   calendarId: string;
-  creatorId: string;
+  $createdBy?: string | null;
 };
 
 export type VirtualEvent = {
@@ -54,7 +54,7 @@ export type VirtualEvent = {
   date: string;
   time?: string | null;
   calendarId: string;
-  creatorId: string;
+  $createdBy?: string | null;
 };
 
 export function eventOccursOn(rule: Rule, date: string): boolean {
@@ -79,7 +79,7 @@ export function virtualEventsForDay(
       date,
       time: s.time ?? null,
       calendarId: s.calendarId,
-      creatorId: s.creatorId,
+      $createdBy: s.$createdBy,
     });
   }
   return result;
@@ -106,7 +106,7 @@ export function virtualTasksForDay(
       title: s.title,
       date,
       calendarId: s.calendarId,
-      creatorId: s.creatorId,
+      $createdBy: s.$createdBy,
     });
   }
   return result;

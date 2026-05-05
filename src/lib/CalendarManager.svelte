@@ -3,13 +3,13 @@
   import { app } from "$lib/schema";
   import { toggleCalendar, isVisible, personalCal as sharedPersonalCal } from "$lib/calendars.svelte";
 
-  type Calendar = { id: string; name: string; colour: string; creatorId: string; isPersonal: boolean };
+  type Calendar = { id: string; name: string; colour: string; $createdBy?: string | null; isPersonal: boolean };
   type Member   = { id: string; calendarId: string; userId: string };
 
   const db      = getDb();
   const session = getSession();
 
-  const allCals       = new QuerySubscription<Calendar>(app.calendars);
+  const allCals       = new QuerySubscription<Calendar>(app.calendars.select("*", "$createdBy"));
   const allMembers    = new QuerySubscription<Member>(app.calendar_members);
 
   // Calendars I created or am a member of
@@ -19,10 +19,10 @@
     const memberIds = new Set(
       (allMembers.current ?? []).filter(m => m.userId === uid).map(m => m.calendarId)
     );
-    return allCals.current.filter(c => c.creatorId === uid || memberIds.has(c.id));
+    return allCals.current.filter(c => c.$createdBy === uid || memberIds.has(c.id));
   });
 
-  const personalCal = $derived(myCalendars.find(c => c.isPersonal && c.creatorId === session?.user_id));
+  const personalCal = $derived(myCalendars.find(c => c.isPersonal && c.$createdBy === session?.user_id));
 
   // Sync personal calendar ID + accent colour to shared state + CSS
   $effect(() => {
@@ -40,13 +40,12 @@
     if (!session?.user_id || allCals.loading) return;
     autoCreateChecked = true;
     const uid = session.user_id;
-    const hasPersonal = (allCals.current ?? []).some(c => c.isPersonal && c.creatorId === uid);
+    const hasPersonal = (allCals.current ?? []).some(c => c.isPersonal && c.$createdBy === uid);
     if (!hasPersonal) {
       const saved = typeof localStorage !== "undefined" ? localStorage.getItem("tasks-accent") : null;
       const cal = db.insert(app.calendars, {
         name: "Personal",
         colour: saved ?? "#000000",
-        creatorId: uid,
         isPersonal: true,
       });
       db.insert(app.calendar_members, { calendarId: cal.value.id, userId: uid });
@@ -69,7 +68,6 @@
     const cal = db.insert(app.calendars, {
       name,
       colour: "#888888",
-      creatorId: uid,
       isPersonal: false,
     });
     db.insert(app.calendar_members, { calendarId: cal.value.id, userId: uid });
@@ -96,7 +94,7 @@
   function leaveCalendar(cal: Calendar) {
     const uid = session?.user_id;
     if (!uid) return;
-    if (cal.creatorId === uid) {
+    if (cal.$createdBy === uid) {
       // Creator deletes the calendar entirely — destructive, confirm first.
       const message = cal.isPersonal
         ? `Delete "${cal.name}"? This personal calendar and its tasks will be permanently destroyed.`
@@ -146,7 +144,7 @@
             {/if}
           </button>
 
-          {#if cal.creatorId === session?.user_id}
+          {#if cal.$createdBy === session?.user_id}
             <button class="icon-btn" onclick={() => copyInvite(cal)} title="Copy invite link" aria-label="Copy invite link">
               {#if copied === cal.id}
                 <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 6l3 3 5-5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -156,7 +154,7 @@
             </button>
           {/if}
 
-          <button class="icon-btn leave" onclick={() => leaveCalendar(cal)} title={cal.creatorId === session?.user_id ? "Delete calendar" : "Leave calendar"} aria-label={cal.creatorId === session?.user_id ? "Delete calendar" : "Leave calendar"}>
+          <button class="icon-btn leave" onclick={() => leaveCalendar(cal)} title={cal.$createdBy === session?.user_id ? "Delete calendar" : "Leave calendar"} aria-label={cal.$createdBy === session?.user_id ? "Delete calendar" : "Leave calendar"}>
             <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 2l8 8M10 2L2 10" stroke="currentColor" stroke-width="1.25" stroke-linecap="round"/></svg>
           </button>
         </div>
