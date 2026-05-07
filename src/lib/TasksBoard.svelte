@@ -884,19 +884,20 @@
               checked={todo.done}
               onchange={() => toggleDone(todo)}
             />
-            <span
-              class="task-title"
-              ondblclick={
-                todo.isVirtual && todo.seriesId
-                  ? () => openEditTaskSeries(todo.seriesId!, todo.date)
-                  : !todo.isVirtual
-                    ? () => startEditing(todo as Todo)
-                    : undefined
-              }
-            >
-              {#if showRepeatGlyph}<span class="repeat-glyph" aria-label="Recurring">↻</span>{" "}{/if}{todo.title}
-            </span>
           </label>
+          {#if showRepeatGlyph && todo.seriesId}
+            <button
+              type="button"
+              class="repeat-glyph repeat-btn"
+              aria-label="Edit recurrence"
+              title="Edit recurrence"
+              onclick={() => openEditTaskSeries(todo.seriesId!, todo.date)}
+            >↻</button>
+          {/if}
+          <span
+            class="task-title"
+            ondblclick={!todo.isVirtual ? () => startEditing(todo as Todo) : undefined}
+          >{todo.title}</span>
           {#if !todo.isVirtual}
             <button class="del" aria-label="Delete task" onclick={() => db.delete(app.todos, todo.id)}>
               <svg width="9" height="9" viewBox="0 0 9 9" fill="none" aria-hidden="true">
@@ -1498,10 +1499,24 @@
   .task-label {
     display: flex;
     align-items: center;
-    gap: 0.625rem;
-    flex: 1;
-    min-width: 0;
+    flex-shrink: 0;
     cursor: pointer;
+    margin-right: 0.625rem;
+  }
+
+  .repeat-btn {
+    background: none;
+    border: none;
+    padding: 0;
+    margin: 0 0.25rem 0 0;
+    cursor: pointer;
+    flex-shrink: 0;
+    line-height: 1;
+    transition: color 0.1s;
+  }
+
+  .repeat-btn:hover {
+    color: #000;
   }
 
   .cb {
