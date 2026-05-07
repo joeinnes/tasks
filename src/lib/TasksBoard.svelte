@@ -174,6 +174,15 @@
     })
   );
 
+  const maxEventsCount = $derived.by(() => {
+    let max = 0;
+    for (const c of columns) {
+      const count = getEventsForDate(c.date).length;
+      if (count > max) max = count;
+    }
+    return max;
+  });
+
   const calendarMap = $derived.by(() => {
     const map = new Map<string, Calendar>();
     for (const c of allCals.current ?? []) map.set(c.id, c);
@@ -959,7 +968,7 @@
 
 {#snippet eventsBlock(date: string)}
   {@const items = getEventsForDate(date)}
-  {#if items.length > 0}
+  {#if maxEventsCount > 0}
     <ul class="event-list">
       {#each items as event (event.id)}
         <li
@@ -1009,8 +1018,10 @@
           {/if}
         </li>
       {/each}
+      {#each Array(Math.max(0, maxEventsCount - items.length)) as _, i (i)}
+        <li class="event-row event-row-placeholder" aria-hidden="true"></li>
+      {/each}
     </ul>
-    <div class="event-task-divider"></div>
   {/if}
 {/snippet}
 
@@ -1077,7 +1088,9 @@
           </button>
         </div>
         {@render eventsBlock(col.date)}
-        {@render taskList(col.date, getSlotsForDate(col.date))}
+        <div class="col-tasks">
+          {@render taskList(col.date, getSlotsForDate(col.date))}
+        </div>
       </div>
     {/each}
   </div>
@@ -1404,10 +1417,25 @@
     }
   }
 
-  .event-task-divider {
-    height: 1px;
-    background: #d0d0d0;
-    margin: 0.25rem 0;
+  .event-row-placeholder {
+    cursor: default;
+    pointer-events: none;
+  }
+
+  .event-row-placeholder:hover {
+    background: transparent;
+  }
+
+  .col-tasks {
+    flex: 1;
+    min-height: 0;
+    background: repeating-linear-gradient(
+      to bottom,
+      transparent 0,
+      transparent calc(2rem - 1px),
+      #f0f0f0 calc(2rem - 1px),
+      #f0f0f0 2rem
+    );
   }
 
   /* ── Task list ── */
@@ -1679,6 +1707,13 @@
     flex: 1;
     overflow-y: auto;
     overflow-x: hidden;
+    background: repeating-linear-gradient(
+      to bottom,
+      transparent 0,
+      transparent calc(2rem - 1px),
+      #e8e8e8 calc(2rem - 1px),
+      #e8e8e8 2rem
+    );
   }
 
   .someday-body .task-list {
@@ -1688,7 +1723,8 @@
 
   .someday-body .row {
     border-right: 1px solid #e8e8e8;
-    background: #f4f4f4;
+    border-bottom-color: #e8e8e8;
+    background: transparent;
   }
 
   .someday-body .row:hover:not(.empty) { background: #ececec; }
